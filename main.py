@@ -22,7 +22,7 @@ import matplotlib.gridspec as gridspec
 from matplotlib import collections, patches
 import sys
 import random
-from matplotlib.patches import Rectangle, Polygon, Arrow
+from matplotlib.patches import Rectangle, Arrow
 from matplotlib.collections import PatchCollection
 from matplotlib.colors import ListedColormap
 import numpy as np
@@ -30,13 +30,14 @@ import pickle
 from datetime import datetime
 from cartopy.io.shapereader import Reader
 from cartopy.feature import ShapelyFeature
+import shapely
 
 
 class MapWthInsetFigure:
     def __init__(self, x1_bound=32, x2_bound=45, y1_bound=12, y2_bound=30, fig_output_path=None):
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.date_time = str(datetime.now()).split('.')[0].replace('-','').replace(' ','T').replace(':','')
-
+        self.bounds = [x1_bound, x2_bound, y1_bound, y2_bound]
         self.gis_input_base_path = os.path.join(self.root_dir, 'reef_gis_input')
         self.reef_shape_file_path = os.path.join(
             self.gis_input_base_path, '14_001_WCMC008_CoralReefs2018_v4/01_Data/WCMC008_CoralReef2018_Py_v4.shp'
@@ -60,11 +61,7 @@ class MapWthInsetFigure:
 
         self.large_map_ax.set_extent(extents=(x1_bound, x2_bound, y1_bound, y2_bound))
 
-
-
-
     def draw_map(self):
-
         land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
         print('drawing annotations on big map')
         self._draw_natural_earth_features_big_map(land_110m, ocean_110m, boundary_110m)
@@ -90,28 +87,59 @@ class MapWthInsetFigure:
         print('We reach here before iter')
         reader = Reader(self.reef_shape_file_path)
         count = 0
+        iso_list = []
+        keep_record = []
         for r in reader.records(): # reader.records() produces a generator
-            if ('SAU' in r.attributes['ISO3']):
-                if r._geometry:
-                    print('But we dont reach here')
-                    if hasattr(r._geometry, "__geo_interface__"):
-                        if r._geometry.__geo_interface__['type'].lower() == 'multipolygon':
-                            # Create multiple matplotlib polygon objects from the multiple shape polygons
-                            coords = r._geometry.__geo_interface__['coordinates']
-                            # each of the individual coords is a tup of tups
-                            for tup_coord in coords:
-                                reef_poly = Polygon(tup_coord[0], closed=True, fill=True, edgecolor='red', color='red',
-                                                    alpha=1, zorder=2)
-                                self.large_map_ax.add_patch(reef_poly)
-                                print(f'plotting a reef [{count}]')
-                                count += 1
-                        elif r._geometry.__geo_interface__['type'].lower() == 'polygon':
-                            coords = r._geometry.__geo_interface__['coordinates']
-                            reef_poly = Polygon(coords[0], closed=True, fill=True, edgecolor='red', color='red',
-                                                alpha=1, zorder=2)
-                            self.large_map_ax.add_patch(reef_poly)
-                            print(f'plotting a reef [{count}]')
-                            count += 1
+            if r.bounds[0] > self.bounds[0]:
+                if r.bounds[1] > self.bounds[2]:
+                    if r.bounds[2] < self.bounds[1]:
+                        if r.bounds[3] < self.bounds[3]:
+                            # if ('SAU' in r.attributes['ISO3']):
+                            if r._geometry is not None:
+                                if r._geometry.__geo_interface__['type'].lower() == 'multipolygon':
+                                    # Create multiple matplotlib polygon objects from the multiple shape polygons
+                                    coords = r._geometry.__geo_interface__['coordinates']
+                                    # each of the individual coords is a tup of tups
+                                    for tup_coord in coords:
+                                        reef_poly = mpl.patches.Polygon(tup_coord[0], closed=True, fill=True, edgecolor='red', color='red',
+                                                            alpha=1, zorder=2)
+                                        self.large_map_ax.add_patch(reef_poly)
+                                        print(f'plotting a reef [{count}]')
+                                        count += 1
+                                elif r._geometry.__geo_interface__['type'].lower() == 'polygon':
+                                    coords = r._geometry.__geo_interface__['coordinates']
+                                    reef_poly = mpl.patches.Polygon(coords[0], closed=True, fill=True, edgecolor='red', color='red',
+                                                        alpha=1, zorder=2)
+                                    self.large_map_ax.add_patch(reef_poly)
+                                    print(f'plotting a reef [{count}]')
+                                    count += 1
+                                else:
+                                    foo = 'bar'
+
+                # print('sau. We get lots of sau')
+                # if True:
+                #     # This point of the code is only ever reached when I step over the above line in debug mode.
+                #     print('But we dont reach here')
+                #     if hasattr(r._geometry, "__geo_interface__"):
+                #         if r._geometry.__geo_interface__['type'].lower() == 'multipolygon':
+                #             # Create multiple matplotlib polygon objects from the multiple shape polygons
+                #             coords = r._geometry.__geo_interface__['coordinates']
+                #             # each of the individual coords is a tup of tups
+                #             for tup_coord in coords:
+                #                 reef_poly = mpl.patches.Polygon(tup_coord[0], closed=True, fill=True, edgecolor='red', color='red',
+                #                                     alpha=1, zorder=2)
+                #                 self.large_map_ax.add_patch(reef_poly)
+                #                 print(f'plotting a reef [{count}]')
+                #                 count += 1
+                #         elif r._geometry.__geo_interface__['type'].lower() == 'polygon':
+                #             coords = r._geometry.__geo_interface__['coordinates']
+                #             reef_poly = mpl.patches.Polygon(coords[0], closed=True, fill=True, edgecolor='red', color='red',
+                #                                 alpha=1, zorder=2)
+                #             self.large_map_ax.add_patch(reef_poly)
+                #             print(f'plotting a reef [{count}]')
+                #             count += 1
+                # else:
+                #     print('do we catch the else, yes we do')
         print('We also reach here at end of iter')
 
     def _get_naural_earth_features_big_map(self):
