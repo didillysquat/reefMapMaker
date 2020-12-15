@@ -22,7 +22,7 @@ import matplotlib.gridspec as gridspec
 from matplotlib import collections, patches
 import sys
 import random
-from matplotlib.patches import Rectangle, Arrow
+from matplotlib.patches import Polygon, Circle
 from matplotlib.collections import PatchCollection
 from matplotlib.colors import ListedColormap
 import numpy as np
@@ -39,6 +39,8 @@ class MapWthInsetFigure:
         self.date_time = str(datetime.now()).split('.')[0].replace('-','').replace(' ','T').replace(':','')
         self.bounds = [x1_bound, x2_bound, y1_bound, y2_bound]
         self.gis_input_base_path = os.path.join(self.root_dir, 'reef_gis_input')
+        self.user_input_path = os.path.join(self.gis_input_base_path, 'user_input.csv')
+        self.user_circles = self._make_user_circles()
         self.reef_shape_file_path = os.path.join(
             self.gis_input_base_path, '14_001_WCMC008_CoralReefs2018_v4/01_Data/WCMC008_CoralReef2018_Py_v4.shp'
         )
@@ -61,6 +63,14 @@ class MapWthInsetFigure:
 
         self.large_map_ax.set_extent(extents=(x1_bound, x2_bound, y1_bound, y2_bound))
 
+    def _make_user_circles(self):
+        circles = []
+        df = pd.read_csv(self.user_input_path)
+        df.set_index(keys=['site'], inplace=True, drop=True)
+        for site in df.index:
+            circles.append(Circle(xy=(df.at[site, 'Longitude_(E)'], df.at[site, 'Latitude_(N)']), radius=0.05, color='red', zorder=3))
+        return circles
+
     def draw_map(self):
         land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
         print('drawing annotations on big map')
@@ -74,12 +84,22 @@ class MapWthInsetFigure:
         # We are modifying the code from the Restrepo et al paper that I wrote
 
         print('here')
-        self._add_reefs_big_map()
+        self._add_reference_reefs()
+        self._add_user_reefs()
 
         print('saving .png')
         plt.savefig(self.fig_out_path, dpi=600)
 
-    def _add_reefs_big_map(self):
+    def _add_user_reefs(self):
+        """
+        Add the user supplied reefs.
+        Currently as Circles, but we should enable polygons too.
+        """
+        for circle in self.user_circles:
+            self.large_map_ax.add_patch(circle)
+        foo = 'bar'
+
+    def _add_reference_reefs(self):
         # We were working with shapely features and adding geometries but there were so many problems
         # I advise to stay away form trying to get them working again.
         # Instead we are now creating individual Polygon patches from the coordinates
@@ -87,60 +107,40 @@ class MapWthInsetFigure:
         print('We reach here before iter')
         reader = Reader(self.reef_shape_file_path)
         count = 0
-        iso_list = []
-        keep_record = []
+        # records_list = [r for r in reader.records() if r.geometry is not None]
         for r in reader.records(): # reader.records() produces a generator
             if r.bounds[0] > self.bounds[0]:
                 if r.bounds[1] > self.bounds[2]:
                     if r.bounds[2] < self.bounds[1]:
                         if r.bounds[3] < self.bounds[3]:
                             # if ('SAU' in r.attributes['ISO3']):
-                            if r._geometry is not None:
-                                if r._geometry.__geo_interface__['type'].lower() == 'multipolygon':
+                            try:
+                                if r.geometry.geom_type.lower() == 'multipolygon':
                                     # Create multiple matplotlib polygon objects from the multiple shape polygons
-                                    coords = r._geometry.__geo_interface__['coordinates']
+                                    for polygon in r.geometry:
+                                        coords = polygon.exterior.coords.xy
                                     # each of the individual coords is a tup of tups
-                                    for tup_coord in coords:
-                                        reef_poly = mpl.patches.Polygon(tup_coord[0], closed=True, fill=True, edgecolor='red', color='red',
-                                                            alpha=1, zorder=2)
+                                        reef_poly = Polygon(
+                                            [(x, y) for x, y in zip(list(coords[0]), list(coords[1]))], closed=True,
+                                            fill=True, edgecolor='#003366', facecolor='#003366',
+                                            alpha=1, zorder=2)
                                         self.large_map_ax.add_patch(reef_poly)
-                                        print(f'plotting a reef [{count}]')
-                                        count += 1
-                                elif r._geometry.__geo_interface__['type'].lower() == 'polygon':
-                                    coords = r._geometry.__geo_interface__['coordinates']
-                                    reef_poly = mpl.patches.Polygon(coords[0], closed=True, fill=True, edgecolor='red', color='red',
+                                elif r.geometry.geom_type.lower() == 'polygon':
+                                    coords = r.geometry.exterior.coords.xy
+                                    reef_poly = Polygon([(x,y) for x, y in zip(list(coords[0]), list(coords[1]))], closed=True, fill=True, edgecolor='#003366', facecolor='#003366',
                                                         alpha=1, zorder=2)
                                     self.large_map_ax.add_patch(reef_poly)
-                                    print(f'plotting a reef [{count}]')
-                                    count += 1
                                 else:
                                     foo = 'bar'
+                            except Exception as e:
+                                # The common error that occurs is Unexpected Error: unable to find ring point
+                                # We've given up trying to catch this is a more elegant way
+                                # The class of exception raised is Exception in shapefile.py
+                                count += 1
+                                print(e)
+                                continue
 
-                # print('sau. We get lots of sau')
-                # if True:
-                #     # This point of the code is only ever reached when I step over the above line in debug mode.
-                #     print('But we dont reach here')
-                #     if hasattr(r._geometry, "__geo_interface__"):
-                #         if r._geometry.__geo_interface__['type'].lower() == 'multipolygon':
-                #             # Create multiple matplotlib polygon objects from the multiple shape polygons
-                #             coords = r._geometry.__geo_interface__['coordinates']
-                #             # each of the individual coords is a tup of tups
-                #             for tup_coord in coords:
-                #                 reef_poly = mpl.patches.Polygon(tup_coord[0], closed=True, fill=True, edgecolor='red', color='red',
-                #                                     alpha=1, zorder=2)
-                #                 self.large_map_ax.add_patch(reef_poly)
-                #                 print(f'plotting a reef [{count}]')
-                #                 count += 1
-                #         elif r._geometry.__geo_interface__['type'].lower() == 'polygon':
-                #             coords = r._geometry.__geo_interface__['coordinates']
-                #             reef_poly = mpl.patches.Polygon(coords[0], closed=True, fill=True, edgecolor='red', color='red',
-                #                                 alpha=1, zorder=2)
-                #             self.large_map_ax.add_patch(reef_poly)
-                #             print(f'plotting a reef [{count}]')
-                #             count += 1
-                # else:
-                #     print('do we catch the else, yes we do')
-        print('We also reach here at end of iter')
+        print(f'{count} error producing records that were in bounds were counted')
 
     def _get_naural_earth_features_big_map(self):
         land_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
