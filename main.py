@@ -11,6 +11,7 @@ import pandas as pd
 import matplotlib as mpl
 mpl.use('TKAgg')
 import matplotlib.pyplot as plt
+import argparse
 # NB the pip cartopy install seems to be broken as it doesn't install the required libararies.
 # The solution was to install using conda. conda install cartopy.
 # I then had to downgrade shapely to 1.5.17. pip install shapely==1.5.17
@@ -18,50 +19,97 @@ from cartopy.mpl.gridliner import Gridliner
 import matplotlib.ticker as mticker
 import cartopy.crs as ccrs
 import cartopy
-import matplotlib.gridspec as gridspec
-from matplotlib import collections, patches
-import sys
-import random
 from matplotlib.patches import Polygon, Circle
-from matplotlib.collections import PatchCollection
-from matplotlib.colors import ListedColormap
-import numpy as np
-import pickle
 from datetime import datetime
 from cartopy.io.shapereader import Reader
-from cartopy.feature import ShapelyFeature
-import shapely
 
 
 class MapWthInsetFigure:
-    def __init__(self, x1_bound=32, x2_bound=45, y1_bound=12, y2_bound=30, fig_output_path=None):
+    def __init__(self, user_input_path, fig_output_dir=None):
+        print("""
+        
+                         __ __  __             __  __       _             
+                        / _|  \/  |           |  \/  |     | |            
+          _ __ ___  ___| |_| \  / | __ _ _ __ | \  / | __ _| | _____ _ __ 
+         | '__/ _ \/ _ \  _| |\/| |/ _` | '_ \| |\/| |/ _` | |/ / _ \ '__|
+         | | |  __/  __/ | | |  | | (_| | |_) | |  | | (_| |   <  __/ |   
+         |_|  \___|\___|_| |_|  |_|\__,_| .__/|_|  |_|\__,_|_|\_\___|_|   
+                                        | |                               
+                                        |_|                               
+
+        """)
+        print("""
+            UNEP-WCMC, WorldFish Centre, WRI, TNC (2018). Global distribution of warm-water coral reefs, compiled from 
+            multiple sources including the Millennium Coral Reef Mapping Project. Version 4.0. Includes contributions 
+            from IMaRS-USF and IRD (2005), IMaRS-USF (2005) and Spalding et al. (2001). Cambridge (UK): UN Environment 
+            World Conservation Monitoring Centre. URL: http://data.unep-wcmc.org/datasets/1\n
+    
+            Citations for the separate entities:
+            IMaRS-USF (Institute for Marine Remote Sensing-University of South Florida) (2005). Millennium Coral Reef 
+            Mapping Project. Unvalidated maps. These maps are unendorsed by IRD, but were further interpreted by UNEP 
+            World Conservation Monitoring Centre. Cambridge (UK): UNEP World Conservation Monitoring Centre
+            
+            IMaRS-USF, IRD (Institut de Recherche pour le Developpement) (2005). Millennium Coral Reef Mapping Project. 
+            Validated maps. Cambridge (UK): UNEP World Conservation Monitoring Centre
+            
+            Spalding MD, Ravilious C, Green EP (2001). World Atlas of Coral Reefs. Berkeley (California, USA): 
+            The University of California Press. 436 pp. 
+        """)
+        parser = argparse.ArgumentParser(
+            description='A script to make maps with annotated coral reef locations',
+            epilog='For support email: didillysquat@gmail.com')
+        self._define_additional_args(parser)
+        self.args = parser.parse_args()
         self.root_dir = os.path.dirname(os.path.realpath(__file__))
         self.date_time = str(datetime.now()).split('.')[0].replace('-','').replace(' ','T').replace(':','')
-        self.bounds = [x1_bound, x2_bound, y1_bound, y2_bound]
+
+        # User input
+        self.user_input_path = os.path.join(user_input_path)
+        df = pd.read_excel(user_input_path, sheet_name='user_map_input')
+        foo = 'bar'
+        # self.bounds = [x1_bound, x2_bound, y1_bound, y2_bound]
         self.gis_input_base_path = os.path.join(self.root_dir, 'reef_gis_input')
-        self.user_input_path = os.path.join(self.gis_input_base_path, 'user_input.csv')
+
         self.user_circles = self._make_user_circles()
-        self.reef_shape_file_path = os.path.join(
+
+        # reference reefs
+        self.reference_reef_shape_file_path = os.path.join(
             self.gis_input_base_path, '14_001_WCMC008_CoralReefs2018_v4/01_Data/WCMC008_CoralReef2018_Py_v4.shp'
         )
+        if not os.path.exists(self.reference_reef_shape_file_path):
+            raise RuntimeError(f'unable to find reference reef shape file.\n'
+                               f'Please ensure that you have downloaded the 14_001_WCMC008_CoralReefs2018_v4 '
+                               f'dataset from https://data.unep-wcmc.org/datasets/1 and have placed decompressed '
+                               f'directory in the reef_gis_input directory.')
+
+        # setup the map figure
         self.fig = plt.figure(figsize=(8,5))
         self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(), zorder=1)
+        # self.large_map_ax.set_extent(extents=(x1_bound, x2_bound, y1_bound, y2_bound))
 
-        # figure output
-        if not fig_output_path:
-            self.fig_out_path = os.path.join(self.root_dir, f'map_out_{self.date_time}.png')
+        # figure output paths
+        if not fig_output_dir:
+            self.fig_out_path_svg = os.path.join(self.root_dir, f'map_out_{self.date_time}.svg')
+            self.fig_out_path_png = os.path.join(self.root_dir, f'map_out_{self.date_time}.png')
         else:
-            if(fig_output_path.split('.')[-1] in ['svg', 'png', 'jpg', 'jpeg']):
-                if not os.path.exists(os.path.abspath(fig_output_path)):
-                    os.makedirs(os.path.abspath(fig_output_path))
-                self.fig_out_path = fig_output_path
-            else:
-                raise RuntimeError(
-                    "Please ensure that a full path is given for "
-                    "--fig_output_path with extension .svg, .png, .jpg or .jpeg")
+            if not os.path.exists(os.path.abspath(fig_output_dir)):
+                os.makedirs(os.path.abspath(fig_output_dir))
+            self.fig_out_path_svg = os.path.join(fig_output_dir, f'map_out_{self.date_time}.svg')
+            self.fig_out_path_png = os.path.join(fig_output_dir, f'map_out_{self.date_time}.png')
 
-
-        self.large_map_ax.set_extent(extents=(x1_bound, x2_bound, y1_bound, y2_bound))
+    @staticmethod
+    def _define_additional_args(parser):
+        parser.add_argument(
+            '--user_map_config_sheet_path',
+            help='The full path to the .xlsx file that contains the configurations for the map',
+            required=True
+        )
+        parser.add_argument(
+            '--figure_output_directory',
+            help='The full path to the directory where the map output figures will be saved. '
+                 'A .svg and a .png file will be created with a time stamp.',
+            default='noName'
+        )
 
     def _make_user_circles(self):
         circles = []
@@ -105,7 +153,7 @@ class MapWthInsetFigure:
         # Instead we are now creating individual Polygon patches from the coordinates
         # and adding them to the plot
         print('We reach here before iter')
-        reader = Reader(self.reef_shape_file_path)
+        reader = Reader(self.reference_reef_shape_file_path)
         count = 0
         # records_list = [r for r in reader.records() if r.geometry is not None]
         for r in reader.records(): # reader.records() produces a generator
@@ -205,6 +253,7 @@ class MapWthInsetFigure:
 
 
 # If full then the whole Red Sea length will be plotted
+
 mwif = MapWthInsetFigure()
 mwif.draw_map()
 
