@@ -25,10 +25,11 @@ from datetime import datetime
 from cartopy.io.shapereader import Reader
 import sys
 
+__version__ = "v0.1.0"
 
 class MapWthInsetFigure:
     def __init__(self):
-        print("""
+        print(f"""
         
                          __ __  __             __  __       _             
                         / _|  \/  |           |  \/  |     | |            
@@ -36,11 +37,28 @@ class MapWthInsetFigure:
          | '__/ _ \/ _ \  _| |\/| |/ _` | '_ \| |\/| |/ _` | |/ / _ \ '__|
          | | |  __/  __/ | | |  | | (_| | |_) | |  | | (_| |   <  __/ |   
          |_|  \___|\___|_| |_|  |_|\__,_| .__/|_|  |_|\__,_|_|\_\___|_|   
-                                        | |                               
+                                        | | {__version__}                              
                                         |_|                               
 
         """)
         print("""
+            reefMapMaker uses the Global Distribution of Coral Reefs data set.
+            
+            From https://data.unep-wcmc.org/datasets/1:
+            
+            This dataset shows the global distribution of coral reefs in tropical and subtropical regions.
+            It is the most comprehensive global dataset of warm-water coral reefs to date, acting as a
+            foundation baseline map for future, more detailed, work.
+            This dataset was compiled from a number of sources by UNEP World Conservation Monitoring Centre
+            (UNEP-WCMC) and the WorldFish Centre, in collaboration with WRI (World Resources Institute) and
+            TNC (The Nature Conservancy). Data sources include the Millennium Coral Reef Mapping Project
+            (IMaRS-USF and IRD 2005, IMaRS-USF 2005) and the World Atlas of Coral Reefs (Spalding et al. 2001).
+            
+            When using maps containing the reference coral reefs, please enusre you include the relevant citations
+            to this UNEP-WCMC resource.
+            
+            From https://data.unep-wcmc.org/datasets/1:
+            Citations:
             UNEP-WCMC, WorldFish Centre, WRI, TNC (2018). Global distribution of warm-water coral reefs, compiled from 
             multiple sources including the Millennium Coral Reef Mapping Project. Version 4.0. Includes contributions 
             from IMaRS-USF and IRD (2005), IMaRS-USF (2005) and Spalding et al. (2001). Cambridge (UK): UN Environment 
@@ -94,6 +112,8 @@ class MapWthInsetFigure:
                                f'directory in the reef_gis_input directory.')
 
         # setup the map figure
+        #TODO make the figure at the same ratios as the bounds are given so that we don't end up
+        # with a whole load of white space on the image.
         self.fig = plt.figure(figsize=(8,5))
         self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(), zorder=1)
         self.large_map_ax.set_extent(extents=(self.bounds[0], self.bounds[1], self.bounds[2], self.bounds[3]))
