@@ -103,7 +103,6 @@ class MapWthInsetFigure:
         except TypeError:
             print('Unable to convert supplied bounds to valid lat lon formats. Continuing with global bounds.')
             self.bounds = [-180, 180, -90, 90]
-        self.gis_input_base_path = os.path.join(self.root_dir, 'reef_gis_input')
 
         self.reference_reef_shape_file_path = self._find_shape_path()
 
@@ -113,7 +112,7 @@ class MapWthInsetFigure:
         self.large_map_ax.set_extent(extents=(self.bounds[0], self.bounds[1], self.bounds[2], self.bounds[3]))
 
         # figure output paths
-        if not self.args.fig_out-dir:
+        if not self.args.fig_out_dir:
             self.fig_out_path_svg = os.path.join(self.root_dir, f'map_out_{self.date_time}.svg')
             self.fig_out_path_png = os.path.join(self.root_dir, f'map_out_{self.date_time}.png')
         else:
@@ -124,12 +123,13 @@ class MapWthInsetFigure:
             self.fig_out_path_png = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.png')
 
     def _setup_map_figure(self):
-        # setup the map figure
-        # Set fig size ratios according to lat lon ratios
-        # figsize is w x h
+        """
+        Set fig size ratios according to lat lon ratios
+        """
         big_fig_size = 10
         lat = self.bounds[3] - self.bounds[2]
         lon = self.bounds[1] - self.bounds[0]
+        # figsize is w x h
         if lat > lon:
             fig = plt.figure(figsize=((lon / lat) * big_fig_size, big_fig_size))
         else:
@@ -162,14 +162,15 @@ class MapWthInsetFigure:
     def _search_for_ref_reef_parent_data_dir(self, dir_to_search):
         candidate_dirs = []
         for (dirpath, dirnames, filenames) in os.walk(dir_to_search):
-            candidate_dirs.extend([_ for _ in dirnames if 'WCMC008' in _])
+            candidate_dirs.extend([os.path.join(dirpath, _) for _ in dirnames if 'WCMC008' in _])
+
         if len(candidate_dirs) == 1:
             # Then we have found the parent directory
             data_set_parent_dir = candidate_dirs[0]
         else:
             self._report_unable_to_find_ref_reef_path()
         # Verify that the shape file exists
-        potential_shape_path = os.path.join(dir_to_search, data_set_parent_dir, '01_Data/WCMC008_CoralReef2018_Py_v4.shp')
+        potential_shape_path = os.path.join(data_set_parent_dir, '01_Data/WCMC008_CoralReef2018_Py_v4.shp')
         if os.path.exists(potential_shape_path):
             return potential_shape_path
         else:
@@ -229,12 +230,12 @@ class MapWthInsetFigure:
         try:
             assert (self.config_dict['x1_bound'] < self.config_dict['x2_bound'])
         except AssertionError:
-            raise RuntimeError('Check the format of your user_map_config_sheet.\n'
+            raise RuntimeError('Check the format of your user config sheet.\n'
                                'x1_bound should be less than x2_bound')
         try:
             assert (self.config_dict['y1_bound'] < self.config_dict['y2_bound'])
         except AssertionError:
-            raise RuntimeError('Check the format of your user_map_config_sheet.\n'
+            raise RuntimeError('Check the format of your user config sheet.\n'
                                'y1_bound should be less than y2_bound')
         try:
             for xbound in ['x1_bound', 'x2_bound']:

@@ -74,6 +74,7 @@ the download button, right click, then 'open in new tab'.
 
 Once downloaded, decompress the .zip file and place the entire directory
 (currently '14_001_WCMC008_CoralReefs2018_v4') someplace safe and note the location.
+Do not change the names of the downloaded files.
 
 By default, reefMapMaker will look for the reference reef datafiles in your current working
 directory. Alternatively you can supply the path to the directory using the
