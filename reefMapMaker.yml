@@ -9,3 +9,4 @@ dependencies:
   - cartopy
   - numpy
   - xlrd
+  - scipy
