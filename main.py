@@ -80,13 +80,13 @@ class MapWthInsetFigure:
             epilog='For support email: didillysquat@gmail.com')
         self._define_additional_args(parser)
         self.args = parser.parse_args()
-        self.root_dir = os.path.dirname(os.path.realpath(__file__))
+        self.root_dir = os.getcwd()
         self.date_time = str(datetime.now()).split('.')[0].replace('-','').replace(' ','T').replace(':','')
 
         # User input
-        user_input_path = os.path.join(self.args.user_map_config_sheet_path)
-        df_user_map_input = pd.read_excel(user_input_path, sheet_name='user_map_input', index_col=0)
-        df_user_point_input = pd.read_excel(user_input_path, sheet_name='user_point_input', index_col=0)
+        user_config_path = os.path.join(self.args.config_sheet)
+        df_user_map_input = pd.read_excel(user_config_path, sheet_name='user_map_input', index_col=0)
+        df_user_point_input = pd.read_excel(user_config_path, sheet_name='user_point_input', index_col=0)
         self.config_dict = {k: v for k, v in zip(df_user_map_input.index.values, df_user_map_input['value'].values)}
         print('Checking input config file')
         self._check_config_input_is_valid()
@@ -98,35 +98,87 @@ class MapWthInsetFigure:
             ) for site in df_user_point_input.index
         }
 
-        self.bounds = [self.config_dict['x1_bound'], self.config_dict['x2_bound'], self.config_dict['y1_bound'], self.config_dict['y2_bound']]
+        try:
+            self.bounds = [self.config_dict['x1_bound'], self.config_dict['x2_bound'], self.config_dict['y1_bound'], self.config_dict['y2_bound']]
+        except TypeError:
+            print('Unable to convert supplied bounds to valid lat lon formats. Continuing with global bounds.')
+            self.bounds = [-180, 180, -90, 90]
         self.gis_input_base_path = os.path.join(self.root_dir, 'reef_gis_input')
 
-        # reference reefs
-        self.reference_reef_shape_file_path = os.path.join(
-            self.gis_input_base_path, '14_001_WCMC008_CoralReefs2018_v4/01_Data/WCMC008_CoralReef2018_Py_v4.shp'
-        )
-        if not os.path.exists(self.reference_reef_shape_file_path):
-            raise RuntimeError(f'unable to find reference reef shape file.\n'
-                               f'Please ensure that you have downloaded the 14_001_WCMC008_CoralReefs2018_v4 '
-                               f'dataset from https://data.unep-wcmc.org/datasets/1 and have placed decompressed '
-                               f'directory in the reef_gis_input directory.')
+        self.reference_reef_shape_file_path = self._find_shape_path()
 
-        # setup the map figure
-        #TODO make the figure at the same ratios as the bounds are given so that we don't end up
-        # with a whole load of white space on the image.
-        self.fig = plt.figure(figsize=(8,5))
+        self.fig = self._setup_map_figure()
+
         self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(), zorder=1)
         self.large_map_ax.set_extent(extents=(self.bounds[0], self.bounds[1], self.bounds[2], self.bounds[3]))
 
         # figure output paths
-        if not self.args.figure_output_directory:
+        if not self.args.fig_out-dir:
             self.fig_out_path_svg = os.path.join(self.root_dir, f'map_out_{self.date_time}.svg')
             self.fig_out_path_png = os.path.join(self.root_dir, f'map_out_{self.date_time}.png')
         else:
-            if not os.path.exists(os.path.abspath(self.args.figure_output_directory)):
-                os.makedirs(os.path.abspath(self.args.figure_output_directory))
-            self.fig_out_path_svg = os.path.join(self.args.figure_output_directory, f'map_out_{self.date_time}.svg')
-            self.fig_out_path_png = os.path.join(self.args.figure_output_directory, f'map_out_{self.date_time}.png')
+            if not os.path.exists(os.path.abspath(self.args.fig_out_dir)):
+                print(f'Creating {self.args.fig_out_dir}')
+                os.makedirs(os.path.abspath(self.args.fig_out_dir))
+            self.fig_out_path_svg = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.svg')
+            self.fig_out_path_png = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.png')
+
+    def _setup_map_figure(self):
+        # setup the map figure
+        # Set fig size ratios according to lat lon ratios
+        # figsize is w x h
+        big_fig_size = 10
+        lat = self.bounds[3] - self.bounds[2]
+        lon = self.bounds[1] - self.bounds[0]
+        if lat > lon:
+            fig = plt.figure(figsize=((lon / lat) * big_fig_size, big_fig_size))
+        else:
+            fig = plt.figure(figsize=(big_fig_size, (lat / lon) * big_fig_size))
+        return fig
+
+    def _find_shape_path(self):
+        """
+        If path supplied by user, find the shapefile path and set self.reference_reef_shape_file_path.
+        else, search for the shape file in the current working directory.
+        """
+        if self.args.ref_reef_dir:
+            # The user has supplied a path
+            # This could be the directory containing the parent directory of the dataset
+            # It could be the parent directory of the dataset itself
+            if 'WCMC008' in self.args.ref_reef_dir:
+                potential_shape_path = os.path.join(self.args.ref_reef_dir,
+                                                    '01_Data/WCMC008_CoralReef2018_Py_v4.shp')
+                if os.path.exists(potential_shape_path):
+                    return potential_shape_path
+            else:
+                # Search for the directory in the supplied path
+                dir_to_search = self.args.ref_reef_dir
+                return self._search_for_ref_reef_parent_data_dir(dir_to_search=dir_to_search)
+        else:
+            # No user supplied path, search for the directory in the current working directory
+            dir_to_search = self.root_dir
+            return self._search_for_ref_reef_parent_data_dir(dir_to_search=dir_to_search)
+
+    def _search_for_ref_reef_parent_data_dir(self, dir_to_search):
+        candidate_dirs = []
+        for (dirpath, dirnames, filenames) in os.walk(dir_to_search):
+            candidate_dirs.extend([_ for _ in dirnames if 'WCMC008' in _])
+        if len(candidate_dirs) == 1:
+            # Then we have found the parent directory
+            data_set_parent_dir = candidate_dirs[0]
+        else:
+            self._report_unable_to_find_ref_reef_path()
+        # Verify that the shape file exists
+        potential_shape_path = os.path.join(dir_to_search, data_set_parent_dir, '01_Data/WCMC008_CoralReef2018_Py_v4.shp')
+        if os.path.exists(potential_shape_path):
+            return potential_shape_path
+        else:
+            self._report_unable_to_find_ref_reef_path()
+
+    def _report_unable_to_find_ref_reef_path(self):
+        raise RuntimeError(
+            "Could not automatically find the reference reef dataset. "
+            "Please specify the directory of the dataset on the command line using --ref-reef-dir")
 
     def _check_config_input_is_valid(self):
         # lat long
@@ -198,17 +250,23 @@ class MapWthInsetFigure:
     @staticmethod
     def _define_additional_args(parser):
         parser.add_argument(
-            '--user_map_config_sheet_path',
+            '--config-sheet',
             help='The full path to the .xlsx file that contains the configurations for the map',
             required=True
         )
         parser.add_argument(
-            '--figure_output_directory',
+            '--fig-out-dir',
             help='The full path to the directory where the map output figures will be saved. '
                  'A .svg and a .png file will be created with a time stamp.',
             default=None
         )
-
+        parser.add_argument(
+            '--ref-reef-dir',
+            help='The full path to the directory containing the reference reef shapefile data.'
+                 'Default is current working directory. The dataset can be downloaded from: '
+                 'https://data.unep-wcmc.org/datasets/1',
+            default=None
+        )
     def draw_map(self):
         land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
         print('Drawing annotations on map\n')
