@@ -87,25 +87,28 @@ class MapWthInsetFigure:
         self.date_time = str(datetime.now()).split('.')[0].replace('-','').replace(' ','T').replace(':','')
 
         # User input
+        # We will allow user configurations through both the command line and a config file
+        # We should prioritise command line input
+        # Probably the clearest and most logical way to do this will be to go parameter by parameter
+        self.confic_parameters = ['bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
+                'reference_reef_color', 'reference_reef_patch_type', 'plot_land', 'land_color',
+                'plot_grid_lines', 'grid_line_x_position', 'grid_line_y_position',
+                'grid_line_x_label_position', 'grid_line_y_label_position', 'plot_boundaries']
         if self.args.config_sheet:
-            user_config_path = os.path.join(self.args.config_sheet)
-            df_user_map_input = pd.read_excel(user_config_path, sheet_name='user_map_input', index_col=0)
+            # Config sheet
+            if self.args.config_sheet.endswith('.tsv'):
+                config_df = pd.read_csv(self.args.config_sheet, index_col=0, sep='\t')
+            elif self.args.config_sheet.endswith('.xlsx'):
+                config_df = pd.read_excel(self.args.config_sheet, sheet_name='user_config', index_col=0)
+            self.config_dict = {k: v for k, v in zip(config_df.index.values, config_df['value'].values)}
+
+            self._setup_config()
+
             self.df_user_point_input = pd.read_excel(
-                user_config_path, sheet_name='user_point_input', index_col=0
+                self.args.site_sheet, sheet_name='user_site', index_col=0
             ).sort_values('radius_in_deg_lat', axis=0, ascending=False)
-            self.config_dict = {k: v for k, v in zip(df_user_map_input.index.values, df_user_map_input['value'].values)}
             print('Checking input config file')
-            self._check_config_input_is_valid()
-            # User sites to plot represented as a site: tup dict: (x, y, point diameter, color)
-            # self.user_site_dict = {
-            #     site: (
-            #         self.df_user_point_input.at[site, 'longitude_deg_e'],
-            #         self.df_user_point_input.at[site, 'latitude_deg_n'],
-            #         (float(self.df_user_point_input.at[site, 'radius_in_deg_lat'])*2) * self.coord_to_point_scaler,
-            #         self.df_user_point_input.at[site, 'color']
-            #     )
-            #      for site in self.df_user_point_input.index
-            # }
+            self._setup_config()
         else:
             # no config sheet provided
             # Use default dict
@@ -237,13 +240,33 @@ class MapWthInsetFigure:
             "Could not automatically find the reference reef dataset. "
             "Please specify the directory of the dataset on the command line using --ref-reef-dir")
 
-    def _check_config_input_is_valid(self):
+    def _setup_config(self):
+        """
+        Check the values of the user config inputs
+        We will assume that the user will supply either command line arguments
+        OR a .tsv/.xlsx config_sheet.
+        In the case where a config parameter is referenced in both of these,
+        we will use the command line supplied argument but produce a warning for the user that their config sheet
+        setting is being overwritten.
+        Where no value has been provided for a given config parameter, we will inform the user of this and
+        provide the value for the given param to be used.
+        :return:
+        """
         # lat long
         self._check_bounds()
         self._check_bool_params()
         self._set_default_color_params()
         self._check_gridline_labels()
         self._check_grid_line_coords()
+        self._check_ref_reef_path_type()
+
+    def _check_ref_reef_path_type(self):
+        if pd.isnull(self.config_dict['reference_reef_patch_type']) and self.config_dict['plot_reference_reefs']:
+            print('plotting reefs using default of "polygon".\n'
+                  'If you would rather plot as points, please set the reference_reef_patch_type to "point"')
+        else:
+            raise RuntimeError("Invalid value provided for reference_reef_patch_type.\n"
+                               "Valid values are 'polygon' or 'point'.")
 
     def _check_grid_line_coords(self):
         if self.config_dict['plot_grid_lines']:
@@ -257,33 +280,6 @@ class MapWthInsetFigure:
                 print('Default coordinates will be used.')
                 self.config_dict['grid_line_x_position'] = None
                 self.config_dict['grid_line_y_position'] = None
-                # self._generate_grid_line_coordinates()
-
-    # def _generate_grid_line_coordinates(self):
-    #     """
-    #     Calculate grid line values.
-    #     We will place 5 grid lines on the shortest length of the figure, and then plot gridlines at the
-    #     same intervals for the long length.
-    #     """
-    #     lat = self.bounds[3] - self.bounds[2]
-    #     lon = self.bounds[1] - self.bounds[0]
-    #     # figsize is w x h
-    #     mid_point = (lat / 2 + lat)
-    #     interval = lat/5
-    #     if lat > lon:
-    #         # Then we want to place 5 gridlines on the lon axis
-    #         if lon > 5:
-    #             # Then we do not need to work with decimal places and we should work with whole degrees
-    #         elif lon > 0.5:
-    #             # Then we should be working with 1 dp of accuracy
-    #         elif lon > 0.05:
-    #             # Then we should be working with 2dp of accurace
-    #         mid_point = (lat/2 + lat)
-    #
-    #         fig = plt.figure(figsize=((lon / lat) * big_fig_size, big_fig_size))
-    #     else:
-    #         fig = plt.figure(figsize=(big_fig_size, (lat / lon) * big_fig_size))
-    #     mid_point = self.config_dict['']
 
     def _check_gridline_labels(self):
         try:
