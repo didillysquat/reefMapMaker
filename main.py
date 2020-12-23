@@ -90,7 +90,9 @@ class MapWthInsetFigure:
         if self.args.config_sheet:
             user_config_path = os.path.join(self.args.config_sheet)
             df_user_map_input = pd.read_excel(user_config_path, sheet_name='user_map_input', index_col=0)
-            self.df_user_point_input = pd.read_excel(user_config_path, sheet_name='user_point_input', index_col=0)
+            self.df_user_point_input = pd.read_excel(
+                user_config_path, sheet_name='user_point_input', index_col=0
+            ).sort_values('radius_in_deg_lat', axis=0, ascending=False)
             self.config_dict = {k: v for k, v in zip(df_user_map_input.index.values, df_user_map_input['value'].values)}
             print('Checking input config file')
             self._check_config_input_is_valid()
@@ -125,7 +127,10 @@ class MapWthInsetFigure:
             self.user_site_dict = {}
             self.df_user_point_input = None
 
-        self.bounds = [self.config_dict['x1_bound'], self.config_dict['x2_bound'], self.config_dict['y1_bound'], self.config_dict['y2_bound']]
+        self.bounds = [
+            self.config_dict['x1_bound'], self.config_dict['x2_bound'],
+            self.config_dict['y1_bound'], self.config_dict['y2_bound']
+        ]
 
         self.reference_reef_shape_file_path = self._find_shape_path()
 
@@ -384,6 +389,7 @@ class MapWthInsetFigure:
         Add the user supplied reefs.
         Currently as scatter, but we should enable polygons too.
         Line widths should be proportional to the marker size
+        We should attempt to add the points in order of the largest first to minimise overlap
         """
         print('plotting user reefs\n')
         line_widths = ((self.df_user_point_input['radius_in_deg_lat'].astype(
@@ -394,7 +400,9 @@ class MapWthInsetFigure:
             s=(((self.df_user_point_input['radius_in_deg_lat'].astype(
                 float) * 2) * self.coord_to_point_scaler) ** 2),
             facecolors=self.df_user_point_input['facecolor'],
-            edgecolors=self.df_user_point_input['edgecolor'], zorder=3, linewidths=line_widths)
+            edgecolors=self.df_user_point_input['edgecolor'], zorder=3,
+            linewidths=line_widths
+        )
 
 
     def _add_reference_reefs(self):
@@ -431,7 +439,7 @@ class MapWthInsetFigure:
                                 point_coords_y.append(np.array(coords[1]))
                             else:
                                 # we want to plot the polygons as we go
-                                self._add_and_make_ref_reef_poly(coords)
+                                self._make_and_add_ref_reef_patches(coords)
                             reef_count += 1
                             if reef_count % 100 == 0:
                                 print(f'{reef_count} reference reefs plotted')
@@ -451,7 +459,7 @@ class MapWthInsetFigure:
                             point_coords_y.append(np.array(coords[1]))
                         else:
                             # we want to plot the polygons as we go
-                            self._add_and_make_ref_reef_poly(coords)
+                            self._make_and_add_ref_reef_patches(coords)
                         reef_count += 1
                         if reef_count % 100 == 0:
                             print(f'{reef_count} reference reefs plotted')
@@ -463,15 +471,16 @@ class MapWthInsetFigure:
                 continue
 
         if self.args.points:
-            self._add_and_make_ref_reef_poly(coords=(point_coords_x, point_coords_y))
+            # _add_and_make_ref_reef_poly will only return num_indi_points when self.args.points
+            num_indi_points = self._make_and_add_ref_reef_patches(coords=(point_coords_x, point_coords_y))
 
         print(f'\n{error_count} error producing records were discounted from the reference reefs')
         if self.args.points:
-            print(f'{reef_count} reference reefs were added to the plot as {len(point_coords_y)} individual points')
+            print(f'{reef_count} reference reefs were added to the plot as {num_indi_points} individual points')
         else:
             print(f'{reef_count} reference reefs were added to the plot')
 
-    def _add_and_make_ref_reef_poly(self, coords, sizes=None):
+    def _make_and_add_ref_reef_patches(self, coords, sizes=None):
         """
         When self.args.points we will plot the reference reefs as cirlces on the map.
         We were originally doing this using Circle patches and then either adding them to the plot
@@ -503,19 +512,7 @@ class MapWthInsetFigure:
                     deg_size = lat/500
                 point_size = self.coord_to_point_scaler * deg_size
                 self.large_map_ax.scatter(x=coords_x, y=coords_y, s=point_size**2, zorder=2, facecolors=self.config_dict['reference_reef_color'], edgecolors='none')
-
-            # reef_circles = [Circle(
-            #         xy=(x, y),
-            #         radius=0.02,
-            #         facecolor=self.config_dict['reference_reef_color'], zorder=2, edgecolor=None
-            #     ) for x, y in zip(list(coords[0]), list(coords[1]))]
-            # for circle in reef_circles:
-            #     self.large_map_ax.add_patch(circle)
-            # colors = [self.config_dict['reference_reef_color'] for _ in range(len(reef_circles))]
-            # patches = PatchCollection(patches=reef_circles)
-            # patches.set_facecolor(colors)
-            # self.large_map_ax.add_collection(patches)
-
+            return len(coords_x)
         else:
             reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
                                 closed=True, fill=True, edgecolor=self.config_dict['reference_reef_color'], linewidth=1,
