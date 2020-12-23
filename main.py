@@ -21,9 +21,12 @@ import matplotlib.ticker as mticker
 import cartopy.crs as ccrs
 import cartopy
 from matplotlib.patches import Polygon, Circle
+from matplotlib.collections import PatchCollection
 from datetime import datetime
 from cartopy.io.shapereader import Reader
 import sys
+import numpy as np
+import time
 
 __version__ = "v0.1.0"
 
@@ -84,25 +87,41 @@ class MapWthInsetFigure:
         self.date_time = str(datetime.now()).split('.')[0].replace('-','').replace(' ','T').replace(':','')
 
         # User input
-        user_config_path = os.path.join(self.args.config_sheet)
-        df_user_map_input = pd.read_excel(user_config_path, sheet_name='user_map_input', index_col=0)
-        df_user_point_input = pd.read_excel(user_config_path, sheet_name='user_point_input', index_col=0)
-        self.config_dict = {k: v for k, v in zip(df_user_map_input.index.values, df_user_map_input['value'].values)}
-        print('Checking input config file')
-        self._check_config_input_is_valid()
-        self.circles_dict = {
-            site: Circle(
-                xy=(df_user_point_input.at[site, 'longitude_deg_e'], df_user_point_input.at[site, 'latitude_deg_n']),
-                radius=df_user_point_input.at[site, 'radius_in_deg_lat'],
-                color=df_user_point_input.at[site, 'color'], zorder=3
-            ) for site in df_user_point_input.index
-        }
+        if self.args.config_sheet:
+            user_config_path = os.path.join(self.args.config_sheet)
+            df_user_map_input = pd.read_excel(user_config_path, sheet_name='user_map_input', index_col=0)
+            df_user_point_input = pd.read_excel(user_config_path, sheet_name='user_point_input', index_col=0)
+            self.config_dict = {k: v for k, v in zip(df_user_map_input.index.values, df_user_map_input['value'].values)}
+            print('Checking input config file')
+            self._check_config_input_is_valid()
+            self.circles_dict = {
+                site: Circle(
+                    xy=(df_user_point_input.at[site, 'longitude_deg_e'], df_user_point_input.at[site, 'latitude_deg_n']),
+                    radius=df_user_point_input.at[site, 'radius_in_deg_lat'],
+                    color=df_user_point_input.at[site, 'color'], zorder=3
+                ) for site in df_user_point_input.index
+            }
+        else:
+            # no config sheet provided
+            # Use default dict
+            self.config_dict = {}
+            if self.args.bounds:
+                bounds = [float(_) for _ in self.args.bounds.split(',')]
+                self.config_dict.update(
+                    {'x1_bound': bounds[0], 'x2_bound': bounds[1], 'y1_bound': bounds[2], 'y2_bound': bounds[3]}
+                )
+            else:
+                self.config_dict.update({'x1_bound': -180, 'x2_bound': 180, 'y1_bound': -90, 'y2_bound': 90})
+            self._check_bounds()
+            self.config_dict.update({
+                'plot_sea': True, 'sea_color': "#88b5e0", 'plot_reference_reefs': True,
+                'reference_reef_color': '#003366', 'plot_land': True, 'land_color': 'white',
+                'plot_grid_lines': True, 'grid_line_x_position': None, 'grid_line_y_position': None,
+                'grid_line_x_label_position': 'bottom', 'grid_line_y_label_position': 'left', 'plot_boundaries': True
+            })
+            self.circles_dict = {}
 
-        try:
-            self.bounds = [self.config_dict['x1_bound'], self.config_dict['x2_bound'], self.config_dict['y1_bound'], self.config_dict['y2_bound']]
-        except TypeError:
-            print('Unable to convert supplied bounds to valid lat lon formats. Continuing with global bounds.')
-            self.bounds = [-180, 180, -90, 90]
+        self.bounds = [self.config_dict['x1_bound'], self.config_dict['x2_bound'], self.config_dict['y1_bound'], self.config_dict['y2_bound']]
 
         self.reference_reef_shape_file_path = self._find_shape_path()
 
@@ -110,6 +129,8 @@ class MapWthInsetFigure:
 
         self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(), zorder=1)
         self.large_map_ax.set_extent(extents=(self.bounds[0], self.bounds[1], self.bounds[2], self.bounds[3]))
+        # Scalar for converting the user inputted coordinate radii to point format for plotting
+        self.coord_to_point_scaler = self._calc_scaler()
 
         # figure output paths
         if not self.args.fig_out_dir:
@@ -121,6 +142,32 @@ class MapWthInsetFigure:
                 os.makedirs(os.path.abspath(self.args.fig_out_dir))
             self.fig_out_path_svg = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.svg')
             self.fig_out_path_png = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.png')
+
+    def _calc_scaler(self):
+        """
+        Users input the size of their reefs to be plotted in coordinate system radii, i.e. 0.01 deg
+        We need to convert these values to point values that can then be squared to use the scatter
+        plot size unit for plotting.
+        The transformations required are quite mind bending so I have included some helpful links here:
+        https://matplotlib.org/3.1.1/tutorials/advanced/transforms_tutorial.html
+        https://stackoverflow.com/a/47403507/5516420
+        https://stackoverflow.com/a/33945420/5516420
+
+        Our approach is to use a set of data points that are 1 deg lon apart
+        We convert these to display units and therefore workout what 1 deg lon is in display units (pixels)
+        We then convert this pixel length to a point length with:
+        points = (pixels * 72) / dpi
+        This length is then the scalar and will need to be squared when supplied to the size argument of scatter
+        """
+        # points in data coordinates
+        p1_da = (5, 5)
+        p2_da = (6, 5)
+
+        # get the points in display coordinates
+        di = self.large_map_ax.transData.transform([p1_da, p2_da])
+
+        length_in_pixels = di[1, 0] - di[0, 0]
+        return (length_in_pixels * 72) / self.fig.dpi
 
     def _setup_map_figure(self):
         """
@@ -192,15 +239,42 @@ class MapWthInsetFigure:
     def _check_grid_line_coords(self):
         if self.config_dict['plot_grid_lines']:
             try:
-                assert (not pd.isnull(self.config_dict['grid_line_x_position']))
-                assert (len(self.config_dict['grid_line_x_position'].split(',')) > 0)
-            except AssertionError:
-                raise RuntimeError("Please provide valid x coordinates for your gridlines")
-            try:
+                assert(not pd.isnull(self.config_dict['grid_line_x_position']))
+                assert(len(self.config_dict['grid_line_x_position'].split(',')) > 0)
                 assert (not pd.isnull(self.config_dict['grid_line_y_position']))
                 assert (len(self.config_dict['grid_line_y_position'].split(',')) > 0)
             except AssertionError:
-                raise RuntimeError("Please provide valid y coordinates for your gridlines")
+                print("WARNING: There is a problem with the formatting of your grid line coordinates.")
+                print('Default coordinates will be used.')
+                self.config_dict['grid_line_x_position'] = None
+                self.config_dict['grid_line_y_position'] = None
+                # self._generate_grid_line_coordinates()
+
+    # def _generate_grid_line_coordinates(self):
+    #     """
+    #     Calculate grid line values.
+    #     We will place 5 grid lines on the shortest length of the figure, and then plot gridlines at the
+    #     same intervals for the long length.
+    #     """
+    #     lat = self.bounds[3] - self.bounds[2]
+    #     lon = self.bounds[1] - self.bounds[0]
+    #     # figsize is w x h
+    #     mid_point = (lat / 2 + lat)
+    #     interval = lat/5
+    #     if lat > lon:
+    #         # Then we want to place 5 gridlines on the lon axis
+    #         if lon > 5:
+    #             # Then we do not need to work with decimal places and we should work with whole degrees
+    #         elif lon > 0.5:
+    #             # Then we should be working with 1 dp of accuracy
+    #         elif lon > 0.05:
+    #             # Then we should be working with 2dp of accurace
+    #         mid_point = (lat/2 + lat)
+    #
+    #         fig = plt.figure(figsize=((lon / lat) * big_fig_size, big_fig_size))
+    #     else:
+    #         fig = plt.figure(figsize=(big_fig_size, (lat / lon) * big_fig_size))
+    #     mid_point = self.config_dict['']
 
     def _check_gridline_labels(self):
         try:
@@ -214,7 +288,7 @@ class MapWthInsetFigure:
 
     def _set_default_color_params(self):
         # set default color params
-        default_color_dict = {'sea_color': "#88b5e0", 'land_color': 'white', 'reference_reefs_color': "#003366"}
+        default_color_dict = {'sea_color': "#88b5e0", 'land_color': 'white', 'reference_reef_color': "#003366"}
         for c_param in default_color_dict.keys():
             if (pd.isnull(self.config_dict[c_param]) or self.config_dict[c_param] == 'AUTO'):
                 self.config_dict[c_param] = default_color_dict[c_param]
@@ -253,7 +327,7 @@ class MapWthInsetFigure:
         parser.add_argument(
             '--config-sheet',
             help='The full path to the .xlsx file that contains the configurations for the map',
-            required=True
+            required=False
         )
         parser.add_argument(
             '--fig-out-dir',
@@ -268,6 +342,21 @@ class MapWthInsetFigure:
                  'https://data.unep-wcmc.org/datasets/1',
             default=None
         )
+        parser.add_argument(
+            '--bounds',
+            help='Comma delimited  coordinate boundaries in decimal degrees (N/E)\n'
+                 'in the order of westernmost, easternmost, southermost, northernmost\n.'
+                 'E.g. For bounds that encapsulate the Red Sea: 32,45,12,30',
+            default=None
+        )
+        parser.add_argument(
+            '--points',
+            help='When passed, reference reef will be plotted as a series of cirlces rather than Polygons.\n'
+                 'This can be helpful for maps that cover a larger area as'
+                 ' stroking paths can create some graphical aftefacts.',
+            action='store_true'
+        )
+
     def draw_map(self):
         land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
         print('Drawing annotations on map\n')
@@ -277,9 +366,6 @@ class MapWthInsetFigure:
             self._put_gridlines_on_large_map_ax()
         # TODO needs to be made dynamic and linked to input
         # self._annotate_map_with_sites()
-        # We are going to work wi th this data set for the reefs
-        # https://data.unep-wcmc.org/datasets/1
-        # We are modifying the code from the Restrepo et al paper that I wrote
         self._add_reference_reefs()
         self._add_user_reefs()
 
@@ -305,48 +391,135 @@ class MapWthInsetFigure:
         # and adding them to the plot
         print('Annotating reference reefs\n')
         reader = Reader(self.reference_reef_shape_file_path)
-        count = 0
+        error_count = 0
         reef_count = 0
-        # records_list = [r for r in reader.records() if r.geometry is not None]
-        for r in reader.records(): # reader.records() produces a generator
+        checked_count = 0
+        point_coords_x = []
+        point_coords_y = []
+        start_time = time.time()
+        for r in reader.records():  # reader.records() produces a generator
+            try:
+                if r.geometry.geom_type.lower() == 'multipolygon':
+                    # Create multiple matplotlib polygon objects from the multiple shape polygons
+                    for polygon in r.geometry:
+                        checked_count += 1
+                        if checked_count % 1000 == 0:
+                            new_time = time.time()
+                            print(f'{checked_count} reference reefs checked in {new_time-start_time}s')
+                            # if checked_count == 20000:
+                            #     self._add_and_make_ref_reef_poly(coords=(point_coords_x, point_coords_y))
+                        if self._if_within_bounds(polygon.bounds):
+                            # each of the individual coords is a tup of tups
+                            coords = polygon.exterior.coords.xy
+                            if self.args.points:
+                                # Then we want to collect all of the xy points to plot as a scatter
+                                # and plot them as a single scatter at the end
+                                point_coords_x.append(np.array(coords[0]))
+                                point_coords_y.append(np.array(coords[1]))
+                            else:
+                                # we want to plot the polygons as we go
+                                self._add_and_make_ref_reef_poly(coords)
+                            reef_count += 1
+                            if reef_count % 100 == 0:
+                                print(f'{reef_count} reference reefs plotted')
+                                # if checked_count == 20000:
+                                #     self._add_and_make_ref_reef_poly(coords=(point_coords_x, point_coords_y))
+                elif r.geometry.geom_type.lower() == 'polygon':
+                    checked_count += 1
+                    if checked_count % 1000 == 0:
+                        new_time = time.time()
+                        print(f'{checked_count} reference reefs checked in {new_time - start_time}s')
+                    if self._if_within_bounds(r.bounds):
+                        coords = r.geometry.exterior.coords.xy
+                        if self.args.points:
+                            # Then we want to collect all of the xy points to plot as a scatter
+                            # and plot them as a single scatter at the end
+                            point_coords_x.append(np.array(coords[0]))
+                            point_coords_y.append(np.array(coords[1]))
+                        else:
+                            # we want to plot the polygons as we go
+                            self._add_and_make_ref_reef_poly(coords)
+                        reef_count += 1
+                        if reef_count % 100 == 0:
+                            print(f'{reef_count} reference reefs plotted')
+            except Exception as e:
+                # The common error that occurs is Unexpected Error: unable to find ring point
+                # We've given up trying to catch this is a more elegant way
+                # The class of exception raised is Exception in shapefile.py
+                error_count += 1
+                continue
 
-            if r.bounds[0] > self.bounds[0]:
-                if r.bounds[1] > self.bounds[2]:
-                    if r.bounds[2] < self.bounds[1]:
-                        if r.bounds[3] < self.bounds[3]:
-                            # if ('SAU' in r.attributes['ISO3']):
-                            try:
-                                if r.geometry.geom_type.lower() == 'multipolygon':
-                                    # Create multiple matplotlib polygon objects from the multiple shape polygons
-                                    for polygon in r.geometry:
-                                        coords = polygon.exterior.coords.xy
-                                    # each of the individual coords is a tup of tups
-                                        reef_poly = Polygon(
-                                            [(x, y) for x, y in zip(list(coords[0]), list(coords[1]))], closed=True,
-                                            fill=True, color=self.config_dict['reference_reefs_color'],
-                                            alpha=1, zorder=2)
-                                        self.large_map_ax.add_patch(reef_poly)
-                                        reef_count += 1
-                                        if reef_count % 100 == 0:
-                                            print(f'{reef_count} reference reefs plotted')
-                                elif r.geometry.geom_type.lower() == 'polygon':
-                                    coords = r.geometry.exterior.coords.xy
-                                    reef_poly = Polygon([(x,y) for x, y in zip(list(coords[0]), list(coords[1]))], closed=True, fill=True, color=self.config_dict['reference_reefs_color'],
-                                                        alpha=1, zorder=2)
-                                    self.large_map_ax.add_patch(reef_poly)
-                                    reef_count += 1
-                                    if reef_count % 100 == 0:
-                                        print(f'{reef_count} reference reefs plotted')
-                            except Exception as e:
-                                # The common error that occurs is Unexpected Error: unable to find ring point
-                                # We've given up trying to catch this is a more elegant way
-                                # The class of exception raised is Exception in shapefile.py
-                                count += 1
-                                continue
+        if self.args.points:
+            self._add_and_make_ref_reef_poly(coords=(point_coords_x, point_coords_y))
 
+        print(f'\n{error_count} error producing records were discounted from the reference reefs')
+        if self.args.points:
+            print(f'{reef_count} reference reefs were added to the plot as {len(point_coords_y)} individual points')
+        else:
+            print(f'{reef_count} reference reefs were added to the plot')
 
-        print(f'\n{count} error producing records were discounted from the reference reefs')
+    def _add_and_make_ref_reef_poly(self, coords, sizes=None):
+        """
+        When self.args.points we will plot the reference reefs as cirlces on the map.
+        We were originally doing this using Circle patches and then either adding them to the plot
+        as individual patches or as part of a PatchCollection. However, this is very slow when
+        working with larger numbers of reefs. It is slow to add the patches to the ax, but it is
+        also very slow to write out the figure as .png and .svg
 
+        It is much faster to use scatter to plot the points. This also leads to a much faster write speed for the
+        figure.
+        """
+        if self.args.points:
+            # For the size of the scatter
+            coords_x = np.concatenate(coords[0])
+            coords_y = np.concatenate(coords[1])
+            if sizes:
+                # Then sizes have been provided and we should use these
+                # This is when we are plotting user specified reefs
+                points_size_array_sqr = [(size*self.coord_to_point_scaler)**2 for size in sizes]
+                self.large_map_ax.scatter(x=coords_x, y=coords_y, s=points_size_array_sqr, zorder=2, facecolors=self.config_dict['reference_reef_color'], edgecolors='none')
+            else:
+                # Then we are plotting the user reefs and we should work with a standard
+                # size. A sensible size is perhaps 1/500th of the shortest size
+                lat = self.bounds[3] - self.bounds[2]
+                lon = self.bounds[1] - self.bounds[0]
+                if lat > lon:
+                    # Then we should work with 1/100 of the lon range
+                    deg_size = lon/500
+                else:
+                    deg_size = lat/500
+                point_size = self.coord_to_point_scaler * deg_size
+                self.large_map_ax.scatter(x=coords_x, y=coords_y, s=point_size**2, zorder=2, facecolors=self.config_dict['reference_reef_color'], edgecolors='none')
+
+            # reef_circles = [Circle(
+            #         xy=(x, y),
+            #         radius=0.02,
+            #         facecolor=self.config_dict['reference_reef_color'], zorder=2, edgecolor=None
+            #     ) for x, y in zip(list(coords[0]), list(coords[1]))]
+            # for circle in reef_circles:
+            #     self.large_map_ax.add_patch(circle)
+            # colors = [self.config_dict['reference_reef_color'] for _ in range(len(reef_circles))]
+            # patches = PatchCollection(patches=reef_circles)
+            # patches.set_facecolor(colors)
+            # self.large_map_ax.add_collection(patches)
+
+        else:
+            reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
+                                closed=True, fill=True, edgecolor=self.config_dict['reference_reef_color'], linewidth=1,
+                                facecolor=self.config_dict['reference_reef_color'],
+                                alpha=1, zorder=2)
+            self.large_map_ax.add_patch(reef_poly)
+
+    def _if_within_bounds(self, bounds):
+        """
+        Check bounds for a given polygon lie within the bounds for the map
+        """
+        if bounds[0] > self.bounds[0]:
+            if bounds[1] > self.bounds[2]:
+                if bounds[2] < self.bounds[1]:
+                    if bounds[3] < self.bounds[3]:
+                        return True
+        return False
     def _get_naural_earth_features_big_map(self):
         land_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
                                                         scale='50m')
@@ -378,17 +551,23 @@ class MapWthInsetFigure:
             self.large_map_ax.add_feature(boundary_110m, edgecolor='gray', linewidth=0.2, facecolor='None')
 
     def _put_gridlines_on_large_map_ax(self):
-        """ Although there is a GeoAxis.gridlines() method, this method does not yet allow a lot of
+        """
+        A note on how to plot gridlines using cartopy:
+        Although there is a GeoAxis.gridlines() method, this method does not yet allow a lot of
         bespoke options. If we want to only put the labels on the top and left then we have to
         generate a Gridliner object (normally returned by GeoAxis.gridlines() ourselves. We then need
         to manually change the xlabels_bottom and ylabels_right attributes of this Gridliner object.
-        We then draw it by adding it to the GeoAxis._gridliners list."""
-
-        xlocs = mticker.FixedLocator([float(_) for _ in self.config_dict['grid_line_x_position'].split(',')])
-        ylocs = mticker.FixedLocator([float(_) for _ in self.config_dict['grid_line_y_position'].split(',')])
-        g1 = Gridliner(
-            axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
-            xlocator=xlocs, ylocator=ylocs)
+        We then draw it by adding it to the GeoAxis._gridliners list.
+        """
+        if self.config_dict['grid_line_x_position'] and self.config_dict['grid_line_y_position']:
+            xlocs = mticker.FixedLocator([float(_) for _ in self.config_dict['grid_line_x_position'].split(',')])
+            ylocs = mticker.FixedLocator([float(_) for _ in self.config_dict['grid_line_y_position'].split(',')])
+            g1 = Gridliner(
+                axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
+                xlocator=xlocs, ylocator=ylocs)
+        else:
+            g1 = Gridliner(
+                axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True)
         if self.config_dict['grid_line_x_label_position'] == 'bottom':
             g1.top_labels = False
         else:
