@@ -383,15 +383,18 @@ class MapWthInsetFigure:
         """
         Add the user supplied reefs.
         Currently as scatter, but we should enable polygons too.
+        Line widths should be proportional to the marker size
         """
         print('plotting user reefs\n')
+        line_widths = ((self.df_user_point_input['radius_in_deg_lat'].astype(
+                float) * 2) * self.coord_to_point_scaler) * 0.1
         self.large_map_ax.scatter(
-            x=self.df_user_point_input['longitude_deg_e'].to_numpy(),
-            y=self.df_user_point_input['latitude_deg_n'].to_numpy(),
+            x=self.df_user_point_input['longitude_deg_e'],
+            y=self.df_user_point_input['latitude_deg_n'],
             s=(((self.df_user_point_input['radius_in_deg_lat'].astype(
-                float) * 2) * self.coord_to_point_scaler) ** 2).to_numpy(),
-            facecolors=self.df_user_point_input['facecolor'].to_numpy(),
-            edgecolors=self.df_user_point_input['edgecolor'].to_numpy(), zorder=3)
+                float) * 2) * self.coord_to_point_scaler) ** 2),
+            facecolors=self.df_user_point_input['facecolor'],
+            edgecolors=self.df_user_point_input['edgecolor'], zorder=3, linewidths=line_widths)
 
 
     def _add_reference_reefs(self):
