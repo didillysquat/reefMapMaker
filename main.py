@@ -90,17 +90,20 @@ class MapWthInsetFigure:
         if self.args.config_sheet:
             user_config_path = os.path.join(self.args.config_sheet)
             df_user_map_input = pd.read_excel(user_config_path, sheet_name='user_map_input', index_col=0)
-            df_user_point_input = pd.read_excel(user_config_path, sheet_name='user_point_input', index_col=0)
+            self.df_user_point_input = pd.read_excel(user_config_path, sheet_name='user_point_input', index_col=0)
             self.config_dict = {k: v for k, v in zip(df_user_map_input.index.values, df_user_map_input['value'].values)}
             print('Checking input config file')
             self._check_config_input_is_valid()
-            self.circles_dict = {
-                site: Circle(
-                    xy=(df_user_point_input.at[site, 'longitude_deg_e'], df_user_point_input.at[site, 'latitude_deg_n']),
-                    radius=df_user_point_input.at[site, 'radius_in_deg_lat'],
-                    color=df_user_point_input.at[site, 'color'], zorder=3
-                ) for site in df_user_point_input.index
-            }
+            # User sites to plot represented as a site: tup dict: (x, y, point diameter, color)
+            # self.user_site_dict = {
+            #     site: (
+            #         self.df_user_point_input.at[site, 'longitude_deg_e'],
+            #         self.df_user_point_input.at[site, 'latitude_deg_n'],
+            #         (float(self.df_user_point_input.at[site, 'radius_in_deg_lat'])*2) * self.coord_to_point_scaler,
+            #         self.df_user_point_input.at[site, 'color']
+            #     )
+            #      for site in self.df_user_point_input.index
+            # }
         else:
             # no config sheet provided
             # Use default dict
@@ -119,7 +122,8 @@ class MapWthInsetFigure:
                 'plot_grid_lines': True, 'grid_line_x_position': None, 'grid_line_y_position': None,
                 'grid_line_x_label_position': 'bottom', 'grid_line_y_label_position': 'left', 'plot_boundaries': True
             })
-            self.circles_dict = {}
+            self.user_site_dict = {}
+            self.df_user_point_input = None
 
         self.bounds = [self.config_dict['x1_bound'], self.config_dict['x2_bound'], self.config_dict['y1_bound'], self.config_dict['y2_bound']]
 
@@ -366,8 +370,9 @@ class MapWthInsetFigure:
             self._put_gridlines_on_large_map_ax()
         # TODO needs to be made dynamic and linked to input
         # self._annotate_map_with_sites()
-        self._add_reference_reefs()
         self._add_user_reefs()
+        self._add_reference_reefs()
+
 
         print(f'saving to {self.fig_out_path_png}')
         plt.savefig(self.fig_out_path_png, dpi=600)
@@ -377,12 +382,17 @@ class MapWthInsetFigure:
     def _add_user_reefs(self):
         """
         Add the user supplied reefs.
-        Currently as Circles, but we should enable polygons too.
+        Currently as scatter, but we should enable polygons too.
         """
         print('plotting user reefs\n')
-        for site, circle in self.circles_dict.items():
-            print(f'plotting user reef {site}')
-            self.large_map_ax.add_patch(circle)
+        self.large_map_ax.scatter(
+            x=self.df_user_point_input['longitude_deg_e'].to_numpy(),
+            y=self.df_user_point_input['latitude_deg_n'].to_numpy(),
+            s=(((self.df_user_point_input['radius_in_deg_lat'].astype(
+                float) * 2) * self.coord_to_point_scaler) ** 2).to_numpy(),
+            facecolors=self.df_user_point_input['facecolor'].to_numpy(),
+            edgecolors=self.df_user_point_input['edgecolor'].to_numpy(), zorder=3)
+
 
     def _add_reference_reefs(self):
         # We were working with shapely features and adding geometries but there were so many problems
