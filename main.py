@@ -5,6 +5,11 @@ It is a modification from the CBASS84 script I used to make the figure for that 
 We will aim for it to take command inputs of the map bounding latitudes and longitudes
 By default we will plot the world reefs on the map
 We will also want to be able to add additional reefs to the map through some sort of csv import
+
+# TODO finish coding up verification of the config parameters
+# make args for the config parameters
+# Finish documentation
+# produce examples
 """
 
 import os
@@ -90,10 +95,21 @@ class MapWthInsetFigure:
         # We will allow user configurations through both the command line and a config file
         # We should prioritise command line input
         # Probably the clearest and most logical way to do this will be to go parameter by parameter
-        self.confic_parameters = ['bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
+        self.config_params = ['bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
                 'reference_reef_color', 'reference_reef_patch_type', 'plot_land', 'land_color',
                 'plot_grid_lines', 'grid_line_x_position', 'grid_line_y_position',
                 'grid_line_x_label_position', 'grid_line_y_label_position', 'plot_boundaries']
+        self.param_defaults_dict = {
+            'bounds': [-180, 180, -90, 90],
+            'plot_sea': True,
+            'sea_color': '#88b5e0',
+            'plot_reference_reefs': True,
+            'reference_reef_color': '#003366',
+            'plot_land': True, 'land_color': 'white',
+            'plot_grid_lines': True, 'grid_line_x_position': None,
+            'grid_line_y_position': None, 'grid_line_x_label_position': 'bottom',
+            'grid_line_y_label_position': 'left', 'plot_boundaries': True
+        }
         if self.args.config_sheet:
             # Config sheet
             if self.args.config_sheet.endswith('.tsv'):
@@ -250,11 +266,15 @@ class MapWthInsetFigure:
         setting is being overwritten.
         Where no value has been provided for a given config parameter, we will inform the user of this and
         provide the value for the given param to be used.
-        :return:
+
+        Config params are:
+        'bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
+                'reference_reef_color', 'reference_reef_patch_type', 'plot_land', 'land_color',
+                'plot_grid_lines', 'grid_line_x_position', 'grid_line_y_position',
+                'grid_line_x_label_position', 'grid_line_y_label_position', 'plot_boundaries'
         """
-        # lat long
         self._check_bounds()
-        self._check_bool_params()
+        self._check_bool_params() # TODO we are here.
         self._set_default_color_params()
         self._check_gridline_labels()
         self._check_grid_line_coords()
@@ -300,32 +320,120 @@ class MapWthInsetFigure:
 
     def _check_bool_params(self):
         for bool_param in ['plot_sea', 'plot_reference_reefs', 'plot_land', 'plot_grid_lines', 'plot_boundaries']:
+            cl_param_set, config_param_set = self._param_set(param=bool_param)
+            self._set_config_param(param='bounds', cl_param=cl_param_set, config_param=config_param_set)
+            #TODO we are here working our way through the various parameters
             try:
                 assert (type(self.config_dict[bool_param]) is bool)
             except AssertionError:
                 raise RuntimeError(f"{bool_param} must be either TRUE or FALSE.")
 
     def _check_bounds(self):
+        # Check to see if the bounds are set by either the config_sheet or the command line
+        cl_param_set, config_param_set = self._param_set(param='bounds')
+        # Then there is user supplied value for bounds
+        self._set_config_param(param='bounds', cl_param=cl_param_set, config_param=config_param_set)
+        self._check_bounds_in_correct_order()
+        self._check_bounds_valid_values()
+
+    def _check_bounds_valid_values(self):
         try:
-            assert (self.config_dict['x1_bound'] < self.config_dict['x2_bound'])
+            assert ((self.config_dict['bounds'][0] < 180) and (self.config_dict['bounds'][0] > -180))
+            assert ((self.config_dict['bounds'][1] < 180) and (self.config_dict['bounds'][1] > -180))
+        except AssertionError:
+            raise RuntimeError("One of your longitude bounds appears to be an invalid value.")
+        try:
+            assert ((self.config_dict['bounds'][2] < 90) and (self.config_dict['bounds'][2] > -90))
+            assert ((self.config_dict['bounds'][3] < 90) and (self.config_dict['bounds'][3] > -90))
+        except AssertionError:
+            raise RuntimeError("One of your latitude bounds appears to be an invalid value.")
+
+    def _check_bounds_in_correct_order(self):
+        try:
+            assert (self.config_dict['bounds'][0] < self.config_dict['bounds'][1])
         except AssertionError:
             raise RuntimeError('Check the format of your user config sheet.\n'
-                               'x1_bound should be less than x2_bound')
+                               'westernmost bound should be less than easternmost bound')
         try:
-            assert (self.config_dict['y1_bound'] < self.config_dict['y2_bound'])
+            assert (self.config_dict['bounds'][2] < self.config_dict['bounds'][3])
         except AssertionError:
             raise RuntimeError('Check the format of your user config sheet.\n'
-                               'y1_bound should be less than y2_bound')
-        try:
-            for xbound in ['x1_bound', 'x2_bound']:
-                assert ((self.config_dict[xbound] < 180) and (self.config_dict[xbound] > -180))
-        except AssertionError:
-            raise RuntimeError("One of your xbounds appears to be an invalid value.")
-        try:
-            for ybound in ['y1_bound', 'y2_bound']:
-                assert ((self.config_dict[ybound] < 90) and (self.config_dict[ybound] > -90))
-        except AssertionError:
-            raise RuntimeError("One of your ybounds appears to be an invalid value.")
+                               'southernmost bounds should be less than northernmost bound')
+
+    def _set_config_param_bounds(self, cl_bounds, config_bounds):
+        if config_bounds and cl_bounds:
+            print(
+                f"WARNING: the 'bounds' parameter has been supplied both in the user "
+                f"config sheet ({self.config_dict['bounds']}) and on the command line ({self.args.bounds}).\n"
+                f"The command line-supplied argument will be used."
+            )
+            self.config_dict['bounds'] = [float(_) for _ in self.args.bounds.split(',')]
+            self._notify_user_set_config_dict_param(param='bounds')
+        elif config_bounds:
+            # Then only the config bounds was supplied
+            # Conduct the check using the config_bounds
+            self.config_dict['bounds'] = [float(_) for _ in self.config_dict['bounds'].split(',')]
+            self._notify_user_set_config_dict_param(param='bounds')
+        elif cl_bounds:
+            # Then only the command line bounds were supplied
+            self.config_dict['bounds'] = [float(_) for _ in self.args.bounds.split(',')]
+            self._notify_user_set_config_dict_param(param='bounds')
+        else:
+            # Then no valid bounds have been provided
+            print('No valid bounds provided. Using default global bounds')
+            self.config_dict['bounds'] = [-180, 180, -90, 90]
+            self._notify_user_set_config_dict_param(param='bounds')
+
+    def _set_config_param(self, param, cl_param, config_param):
+        if config_param and cl_param:
+            print(
+                f"WARNING: the {param} parameter has been supplied both in the user "
+                f"config sheet ({self.config_dict[param]}) and on the command line ({getattr(self.args, param)}).\n"
+                f"The command line-supplied argument will be used."
+            )
+            if param == 'bounds':
+                self.config_dict[param] = [float(_) for _ in getattr(self.args, param).split(',')]
+            else: # bool param TODO code the other param types that will come.
+                self.config_dict[param] = getattr(self.args, param)
+            self._notify_user_set_config_dict_param(param=param)
+        elif config_param:
+            # Then param only supplied by config_sheet
+            # Conduct the check using the config_bounds
+            if param == 'bounds':
+                self.config_dict[param] = [float(_) for _ in self.config_dict[param].split(',')]
+            else: # bool param TODO code the other param types that will come.
+                # No need to update the config_dict. Value already correctly set
+                pass
+            self._notify_user_set_config_dict_param(param=param)
+        elif cl_param:
+            # Then param only supplied by command line
+            if param == 'bounds':
+                self.config_dict[param] = [float(_) for _ in getattr(self.args, param).split(',')]
+            else:  # bool param TODO code the other param types that will come.
+                self.config_dict[param] = getattr(self.args, param)
+            self._notify_user_set_config_dict_param(param=param)
+        else:
+            # Then no valid argument set for the param
+            # Set param from default dict
+            print(f'No valid value for {param} provided. Using default.')
+            self.config_dict[param] = self.param_defaults_dict[param]
+            self._notify_user_set_config_dict_param(param=param)
+
+    def _param_set(self, param):
+        """
+        Check if a given parameter had a value set via the config sheet or via the command line
+        """
+        config_param = False
+        cl_param = False
+        if param in self.config_dict:
+            if not pd.isnull(self.config_dict[param]):
+                config_param = True
+        if getattr(self.args, param):
+            cl_param = True
+        return cl_param, config_param
+
+    def _notify_user_set_config_dict_param(self, param):
+        print(f'{param} set to: {self.config_dict[param]}')
 
     @staticmethod
     def _define_additional_args(parser):
