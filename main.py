@@ -32,6 +32,8 @@ from cartopy.io.shapereader import Reader
 import sys
 import numpy as np
 import time
+from matplotlib.colors import is_color_like
+import re
 
 __version__ = "v0.1.0"
 
@@ -97,8 +99,8 @@ class MapWthInsetFigure:
         # Probably the clearest and most logical way to do this will be to go parameter by parameter
         self.config_params = ['bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
                 'reference_reef_color', 'reference_reef_patch_type', 'plot_land', 'land_color',
-                'plot_grid_lines', 'grid_line_x_position', 'grid_line_y_position',
-                'grid_line_x_label_position', 'grid_line_y_label_position', 'plot_boundaries']
+                'plot_grid_lines', 'x_grid_line_pos', 'y_grid_line_pos',
+                'x_grid_lab_pos', 'y_grid_lab_pos', 'plot_boundaries']
         self.param_defaults_dict = {
             'bounds': [-180, 180, -90, 90],
             'plot_sea': True,
@@ -106,25 +108,34 @@ class MapWthInsetFigure:
             'plot_reference_reefs': True,
             'reference_reef_color': '#003366',
             'plot_land': True, 'land_color': 'white',
-            'plot_grid_lines': True, 'grid_line_x_position': None,
-            'grid_line_y_position': None, 'grid_line_x_label_position': 'bottom',
-            'grid_line_y_label_position': 'left', 'plot_boundaries': True
+            'plot_grid_lines': True, 'x_grid_line_pos': None,
+            'y_grid_line_pos': None, 'x_grid_lab_pos': 'bottom',
+            'y_grid_lab_pos': 'left', 'plot_boundaries': True
         }
         if self.args.config_sheet:
             # Config sheet
+            print('Checking user config...')
             if self.args.config_sheet.endswith('.tsv'):
                 config_df = pd.read_csv(self.args.config_sheet, index_col=0, sep='\t')
             elif self.args.config_sheet.endswith('.xlsx'):
                 config_df = pd.read_excel(self.args.config_sheet, sheet_name='user_config', index_col=0)
             self.config_dict = {k: v for k, v in zip(config_df.index.values, config_df['value'].values)}
-
             self._setup_config()
+            print('User config checks complete.')
 
-            self.df_user_point_input = pd.read_excel(
-                self.args.site_sheet, sheet_name='user_site', index_col=0
-            ).sort_values('radius_in_deg_lat', axis=0, ascending=False)
-            print('Checking input config file')
-            self._setup_config()
+            if self.args.site_sheet:
+                print('Reading in site sheet')
+                if self.args.site_sheet.endswith('.tsv'):
+                    self.site_df = pd.read_csv(self.args.config_sheet, index_col=0, sep='\t').sort_values('radius_in_deg_lat', axis=0, ascending=False)
+                elif self.args.site_sheet.endswith('.xlsx'):
+                    self.site_df = pd.read_excel(
+                        self.args.site_sheet, sheet_name='user_site', index_col=0
+                    ).sort_values('radius_in_deg_lat', axis=0, ascending=False)
+                print('Checking user sites...')
+                self._check_site_sheet()
+                print('User site checks complete.')
+            else:
+                print('No user site sheet provided. User sites will not be plotted.')
         else:
             # no config sheet provided
             # Use default dict
@@ -140,11 +151,11 @@ class MapWthInsetFigure:
             self.config_dict.update({
                 'plot_sea': True, 'sea_color': "#88b5e0", 'plot_reference_reefs': True,
                 'reference_reef_color': '#003366', 'plot_land': True, 'land_color': 'white',
-                'plot_grid_lines': True, 'grid_line_x_position': None, 'grid_line_y_position': None,
-                'grid_line_x_label_position': 'bottom', 'grid_line_y_label_position': 'left', 'plot_boundaries': True
+                'plot_grid_lines': True, 'x_grid_line_pos': None, 'y_grid_line_pos': None,
+                'x_grid_lab_pos': 'bottom', 'y_grid_lab_pos': 'left', 'plot_boundaries': True
             })
             self.user_site_dict = {}
-            self.df_user_point_input = None
+            self.site_df = None
 
         self.bounds = [
             self.config_dict['x1_bound'], self.config_dict['x2_bound'],
@@ -170,6 +181,95 @@ class MapWthInsetFigure:
                 os.makedirs(os.path.abspath(self.args.fig_out_dir))
             self.fig_out_path_svg = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.svg')
             self.fig_out_path_png = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.png')
+
+    def _check_site_sheet(self):
+        """
+        Check the site_sheet input for valid inputs
+        """
+        for site in self.site_df.index:
+            self._check_site_lat_lon(site)
+
+    def _check_site_lat_lon(self, site):
+        lat = self.site_df.at[site, 'latitude_deg_n']
+        lon = self.site_df.at[site, 'longitude_deg_e']
+        if pd.isnull(lat) or pd.isnull(lon):
+            raise RuntimeError(f"invalid lat or lon format for site {site}")
+        try:
+            self.site_df.at[site, 'latitude_deg_n'] = float(lat)
+            self.site_df.at[site, 'longitude_deg_e'] = float(lon)
+        except ValueError:
+            print("WARNING: Unable to convert lat or lon value for {site} to decimal degrees.")
+            print("Attempting to fix the format")
+            try:
+                if 'N' in lat:
+                    new_lat = float(lat.replace('N', '').replace(chr(176), ''))
+                    # lat_float should be positive
+                    if new_lat < 0:
+                        new_lat = new_lat * -1
+                elif 'S' in lat:
+                    new_lat = float(lat.replace('S', '').replace(chr(176), ''))
+                    # lat_float should be negative
+                    if new_lat > 0:
+                        new_lat = new_lat * -1
+                else:
+                    # There was not an N or S found in the lat so we should raise error
+                    raise RuntimeError(f'Unable to fix lat lon format for {site}')
+                if 'E' in lon:
+                    new_lon = float(lon.replace('E', '').replace(chr(176), ''))
+                    # lon_float should be positive
+                    if new_lon < 0:
+                        new_lon = new_lon * -1
+                elif 'W' in lon:
+                    new_lon = float(lon.replace('W', '').replace(chr(176), ''))
+                    # lon_float should be negative
+                    if new_lon > 0:
+                        new_lon = new_lon * -1
+                else:
+                    # There was not an N or S found in the lat so we should raise error
+                    raise RuntimeError
+            except Exception:
+                # see if they are in proper dms format
+                try:
+                    new_lat = self.dms2dec(lat)
+                    new_lon = self.dms2dec(lon)
+                # if all this fails, convert to 999
+                except Exception:
+                    raise RuntimeError(f'Unable to fix lat lon format for {site}')
+            print(f"For {site}:\n"
+                  f"\tlatitude was converted from {lat} --> {new_lat}\n"
+                  f"\tlongitude was converted from {lon} --> {new_lon}")
+
+    @staticmethod
+    def dms2dec(dms_str):
+        """Return decimal representation of DMS
+
+            dms2dec(utf8(48°53'10.18"N))
+            48.8866111111F
+
+            dms2dec(utf8(2°20'35.09"E))
+            2.34330555556F
+
+            dms2dec(utf8(48°53'10.18"S))
+            -48.8866111111F
+
+            dms2dec(utf8(2°20'35.09"W))
+            -2.34330555556F
+
+            """
+
+        dms_str = re.sub(r'\s', '', dms_str)
+
+        sign = -1 if re.search('[swSW]', dms_str) else 1
+
+        numbers = [*filter(len, re.split('\D+', dms_str, maxsplit=4))]
+
+        degree = numbers[0]
+        minute = numbers[1] if len(numbers) >= 2 else '0'
+        second = numbers[2] if len(numbers) >= 3 else '0'
+        frac_seconds = numbers[3] if len(numbers) >= 4 else '0'
+
+        second += "." + frac_seconds
+        return sign * (int(degree) + float(minute) / 60 + float(second) / 3600)
 
     def _calc_scaler(self):
         """
@@ -270,63 +370,90 @@ class MapWthInsetFigure:
         Config params are:
         'bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
                 'reference_reef_color', 'reference_reef_patch_type', 'plot_land', 'land_color',
-                'plot_grid_lines', 'grid_line_x_position', 'grid_line_y_position',
-                'grid_line_x_label_position', 'grid_line_y_label_position', 'plot_boundaries'
+                'plot_grid_lines', 'x_grid_line_pos', 'y_grid_line_pos',
+                'x_grid_lab_pos', 'y_grid_lab_pos', 'plot_boundaries'
         """
         self._check_bounds()
-        self._check_bool_params() # TODO we are here.
-        self._set_default_color_params()
-        self._check_gridline_labels()
+        self._check_bool_params()
+        self._check_color_params()
+        self._check_grid_lab_pos()
         self._check_grid_line_coords()
         self._check_ref_reef_path_type()
 
     def _check_ref_reef_path_type(self):
-        if pd.isnull(self.config_dict['reference_reef_patch_type']) and self.config_dict['plot_reference_reefs']:
-            print('plotting reefs using default of "polygon".\n'
-                  'If you would rather plot as points, please set the reference_reef_patch_type to "point"')
-        else:
-            raise RuntimeError("Invalid value provided for reference_reef_patch_type.\n"
-                               "Valid values are 'polygon' or 'point'.")
+        """
+        Check user provided valid value for reference_reef_patch_type or set default
+        """
+        if self.config_dict['plot_reference_reefs']:
+            cl_param_set, config_param_set = self._param_set(param='reference_reef_patch_type')
+            self._set_config_param(param='reference_reef_patch_type', cl_param=cl_param_set, config_param=config_param_set)
+            if not self.config_dict['reference_reef_patch_type'] in ['polygon', 'point']:
+                self._set_default_param(param='reference_reef_patch_type')
 
     def _check_grid_line_coords(self):
+        for g_line_cords_param in ['x_grid_line_pos', 'y_grid_line_pos']:
+            cl_param_set, config_param_set = self._param_set(param=g_line_cords_param)
+            self._set_config_param(param=g_line_cords_param, cl_param=cl_param_set, config_param=config_param_set)
+        self._check_valid_grid_line_coords()
+
+    def _check_valid_grid_line_coords(self):
         if self.config_dict['plot_grid_lines']:
             try:
-                assert(not pd.isnull(self.config_dict['grid_line_x_position']))
-                assert(len(self.config_dict['grid_line_x_position'].split(',')) > 0)
-                assert (not pd.isnull(self.config_dict['grid_line_y_position']))
-                assert (len(self.config_dict['grid_line_y_position'].split(',')) > 0)
+                assert (len(self.config_dict['x_grid_line_pos'].split(',')) > 0)
+                [float(_) for _ in self.config_dict['x_grid_line_pos'].split(',')]
+                assert (len(self.config_dict['y_grid_line_pos'].split(',')) > 0)
+                [float(_) for _ in self.config_dict['y_grid_line_pos'].split(',')]
             except AssertionError:
                 print("WARNING: There is a problem with the formatting of your grid line coordinates.")
                 print('Default coordinates will be used.')
-                self.config_dict['grid_line_x_position'] = None
-                self.config_dict['grid_line_y_position'] = None
+                self.config_dict['x_grid_line_pos'] = None
+                self.config_dict['y_grid_line_pos'] = None
 
-    def _check_gridline_labels(self):
-        try:
-            assert (self.config_dict['grid_line_x_label_position'] in ['bottom', 'top'])
-        except AssertionError:
-            raise RuntimeError("grid_line_x_label_position must be 'bottom' or 'top'")
-        try:
-            assert (self.config_dict['grid_line_y_label_position'] in ['left', 'right'])
-        except AssertionError:
-            raise RuntimeError("grid_line_y_label_position must be 'left' or 'right'")
+    def _check_grid_lab_pos(self):
+        """
+        Check for a user input for the grid_lab_pos params and set to default if not.
+        """
+        for g_lab_pos_param in ['x_grid_lab_pos', 'y_grid_lab_pos']:
+            cl_param_set, config_param_set = self._param_set(param=g_lab_pos_param)
+            self._set_config_param(param=g_lab_pos_param, cl_param=cl_param_set, config_param=config_param_set)
+        self._check_valid_grid_lab_pos()
 
-    def _set_default_color_params(self):
-        # set default color params
-        default_color_dict = {'sea_color': "#88b5e0", 'land_color': 'white', 'reference_reef_color': "#003366"}
-        for c_param in default_color_dict.keys():
-            if (pd.isnull(self.config_dict[c_param]) or self.config_dict[c_param] == 'AUTO'):
-                self.config_dict[c_param] = default_color_dict[c_param]
+    def _check_valid_grid_lab_pos(self):
+        try:
+            assert (self.config_dict['x_grid_lab_pos'] in ['bottom', 'top'])
+        except AssertionError:
+            raise RuntimeError("x_grid_lab_pos must be 'bottom' or 'top'")
+        try:
+            assert (self.config_dict['y_grid_lab_pos'] in ['left', 'right'])
+        except AssertionError:
+            raise RuntimeError("y_grid_lab_pos must be 'left' or 'right'")
+
+    def _check_color_params(self):
+        """
+        Check the config and user site color parameters provided
+        and set the config dict to the default value if necessary.
+        """
+        # Map config colour params
+        for c_param in ['sea_color', 'land_color', 'reference_reef_color']:
+            cl_param_set, config_param_set = self._param_set(param=c_param)
+            self._set_config_param(param=c_param, cl_param=cl_param_set, config_param=config_param_set)
+            if not is_color_like(self.config_dict[c_param]):
+                self._set_default_param(param=c_param)
+        # User site colour params
+        # TODO check the site params
+
 
     def _check_bool_params(self):
         for bool_param in ['plot_sea', 'plot_reference_reefs', 'plot_land', 'plot_grid_lines', 'plot_boundaries']:
             cl_param_set, config_param_set = self._param_set(param=bool_param)
-            self._set_config_param(param='bounds', cl_param=cl_param_set, config_param=config_param_set)
-            #TODO we are here working our way through the various parameters
-            try:
-                assert (type(self.config_dict[bool_param]) is bool)
-            except AssertionError:
-                raise RuntimeError(f"{bool_param} must be either TRUE or FALSE.")
+            self._set_config_param(param=bool_param, cl_param=cl_param_set, config_param=config_param_set)
+            self._check_valid_bool_param(bool_param)
+
+    def _check_valid_bool_param(self, bool_param):
+        try:
+            assert (type(self.config_dict[bool_param]) is bool)
+        except AssertionError:
+            raise RuntimeError(f"{bool_param} must be either TRUE or FALSE.")
 
     def _check_bounds(self):
         # Check to see if the bounds are set by either the config_sheet or the command line
@@ -353,36 +480,14 @@ class MapWthInsetFigure:
             assert (self.config_dict['bounds'][0] < self.config_dict['bounds'][1])
         except AssertionError:
             raise RuntimeError('Check the format of your user config sheet.\n'
+                               'latitude and longitude valus must be in valid decimal degree format and\n'
                                'westernmost bound should be less than easternmost bound')
         try:
             assert (self.config_dict['bounds'][2] < self.config_dict['bounds'][3])
         except AssertionError:
             raise RuntimeError('Check the format of your user config sheet.\n'
+                                'latitude and longitude valus must be in valid decimal degree format and\n'
                                'southernmost bounds should be less than northernmost bound')
-
-    def _set_config_param_bounds(self, cl_bounds, config_bounds):
-        if config_bounds and cl_bounds:
-            print(
-                f"WARNING: the 'bounds' parameter has been supplied both in the user "
-                f"config sheet ({self.config_dict['bounds']}) and on the command line ({self.args.bounds}).\n"
-                f"The command line-supplied argument will be used."
-            )
-            self.config_dict['bounds'] = [float(_) for _ in self.args.bounds.split(',')]
-            self._notify_user_set_config_dict_param(param='bounds')
-        elif config_bounds:
-            # Then only the config bounds was supplied
-            # Conduct the check using the config_bounds
-            self.config_dict['bounds'] = [float(_) for _ in self.config_dict['bounds'].split(',')]
-            self._notify_user_set_config_dict_param(param='bounds')
-        elif cl_bounds:
-            # Then only the command line bounds were supplied
-            self.config_dict['bounds'] = [float(_) for _ in self.args.bounds.split(',')]
-            self._notify_user_set_config_dict_param(param='bounds')
-        else:
-            # Then no valid bounds have been provided
-            print('No valid bounds provided. Using default global bounds')
-            self.config_dict['bounds'] = [-180, 180, -90, 90]
-            self._notify_user_set_config_dict_param(param='bounds')
 
     def _set_config_param(self, param, cl_param, config_param):
         if config_param and cl_param:
@@ -392,32 +497,47 @@ class MapWthInsetFigure:
                 f"The command line-supplied argument will be used."
             )
             if param == 'bounds':
-                self.config_dict[param] = [float(_) for _ in getattr(self.args, param).split(',')]
-            else: # bool param TODO code the other param types that will come.
+                try:
+                    self.config_dict[param] = [float(_) for _ in getattr(self.args, param).split(',')]
+                except ValueError:
+                    raise RuntimeError("Unable to convert one of the bounds to decimal degree format.\n"
+                                       "Please check the formatting of your bounds.")
+            else:
                 self.config_dict[param] = getattr(self.args, param)
             self._notify_user_set_config_dict_param(param=param)
         elif config_param:
             # Then param only supplied by config_sheet
             # Conduct the check using the config_bounds
             if param == 'bounds':
-                self.config_dict[param] = [float(_) for _ in self.config_dict[param].split(',')]
-            else: # bool param TODO code the other param types that will come.
+                try:
+                    self.config_dict[param] = [float(_) for _ in self.config_dict[param].split(',')]
+                except ValueError:
+                    raise RuntimeError("Unable to convert one of the bounds to decimal degree format.\n"
+                                       "Please check the formatting of your bounds.")
+            else:
                 # No need to update the config_dict. Value already correctly set
                 pass
             self._notify_user_set_config_dict_param(param=param)
         elif cl_param:
             # Then param only supplied by command line
             if param == 'bounds':
-                self.config_dict[param] = [float(_) for _ in getattr(self.args, param).split(',')]
-            else:  # bool param TODO code the other param types that will come.
+                try:
+                    self.config_dict[param] = [float(_) for _ in getattr(self.args, param).split(',')]
+                except ValueError:
+                    raise RuntimeError("Unable to convert one of the bounds to decimal degree format.\n"
+                                       "Please check the formatting of your bounds.")
+            else:
                 self.config_dict[param] = getattr(self.args, param)
             self._notify_user_set_config_dict_param(param=param)
         else:
             # Then no valid argument set for the param
             # Set param from default dict
-            print(f'No valid value for {param} provided. Using default.')
-            self.config_dict[param] = self.param_defaults_dict[param]
-            self._notify_user_set_config_dict_param(param=param)
+            self._set_default_param(param)
+
+    def _set_default_param(self, param):
+        print(f'No valid value for {param} provided. Using default.')
+        self.config_dict[param] = self.param_defaults_dict[param]
+        self._notify_user_set_config_dict_param(param=param)
 
     def _param_set(self, param):
         """
@@ -496,15 +616,15 @@ class MapWthInsetFigure:
         We should attempt to add the points in order of the largest first to minimise overlap
         """
         print('plotting user reefs\n')
-        line_widths = ((self.df_user_point_input['radius_in_deg_lat'].astype(
+        line_widths = ((self.site_df['radius_in_deg_lat'].astype(
                 float) * 2) * self.coord_to_point_scaler) * 0.1
         self.large_map_ax.scatter(
-            x=self.df_user_point_input['longitude_deg_e'],
-            y=self.df_user_point_input['latitude_deg_n'],
-            s=(((self.df_user_point_input['radius_in_deg_lat'].astype(
+            x=self.site_df['longitude_deg_e'],
+            y=self.site_df['latitude_deg_n'],
+            s=(((self.site_df['radius_in_deg_lat'].astype(
                 float) * 2) * self.coord_to_point_scaler) ** 2),
-            facecolors=self.df_user_point_input['facecolor'],
-            edgecolors=self.df_user_point_input['edgecolor'], zorder=3,
+            facecolors=self.site_df['facecolor'],
+            edgecolors=self.site_df['edgecolor'], zorder=3,
             linewidths=line_widths
         )
 
@@ -673,20 +793,20 @@ class MapWthInsetFigure:
         to manually change the xlabels_bottom and ylabels_right attributes of this Gridliner object.
         We then draw it by adding it to the GeoAxis._gridliners list.
         """
-        if self.config_dict['grid_line_x_position'] and self.config_dict['grid_line_y_position']:
-            xlocs = mticker.FixedLocator([float(_) for _ in self.config_dict['grid_line_x_position'].split(',')])
-            ylocs = mticker.FixedLocator([float(_) for _ in self.config_dict['grid_line_y_position'].split(',')])
+        if self.config_dict['x_grid_line_pos'] and self.config_dict['y_grid_line_pos']:
+            xlocs = mticker.FixedLocator([float(_) for _ in self.config_dict['x_grid_line_pos'].split(',')])
+            ylocs = mticker.FixedLocator([float(_) for _ in self.config_dict['y_grid_line_pos'].split(',')])
             g1 = Gridliner(
                 axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
                 xlocator=xlocs, ylocator=ylocs)
         else:
             g1 = Gridliner(
                 axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True)
-        if self.config_dict['grid_line_x_label_position'] == 'bottom':
+        if self.config_dict['x_grid_lab_pos'] == 'bottom':
             g1.top_labels = False
         else:
             g1.bottom_labels = False
-        if self.config_dict['grid_line_y_label_position'] == 'left':
+        if self.config_dict['y_grid_lab_pos'] == 'left':
             g1.right_labels = False
         else:
             g1.left_labels = False
