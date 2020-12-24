@@ -88,7 +88,8 @@ class MapWthInsetFigure:
         parser = argparse.ArgumentParser(
             description='A script to make maps with annotated coral reef locations',
             epilog='For support email: didillysquat@gmail.com')
-        self._define_additional_args(parser)
+        self._define_runtime_args(parser)
+        self._define_config_args(parser)
         self.args = parser.parse_args()
         self.root_dir = os.getcwd()
         self.date_time = str(datetime.now()).split('.')[0].replace('-','').replace(' ','T').replace(':','')
@@ -99,8 +100,8 @@ class MapWthInsetFigure:
         # Probably the clearest and most logical way to do this will be to go parameter by parameter
         self.config_params = ['bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
                 'reference_reef_color', 'reference_reef_patch_type', 'plot_land', 'land_color',
-                'plot_grid_lines', 'x_grid_line_pos', 'y_grid_line_pos',
-                'x_grid_lab_pos', 'y_grid_lab_pos', 'plot_boundaries']
+                'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
+                'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries']
         self.param_defaults_dict = {
             'bounds': [-180, 180, -90, 90],
             'plot_sea': True,
@@ -108,9 +109,9 @@ class MapWthInsetFigure:
             'plot_reference_reefs': True,
             'reference_reef_color': '#003366',
             'plot_land': True, 'land_color': 'white',
-            'plot_grid_lines': True, 'x_grid_line_pos': None,
-            'y_grid_line_pos': None, 'x_grid_lab_pos': 'bottom',
-            'y_grid_lab_pos': 'left', 'plot_boundaries': True
+            'plot_grid_lines': True, 'lon_grid_line_pos': None,
+            'lat_grid_line_pos': None, 'lon_grid_lab_pos': 'bottom',
+            'lat_grid_lab_pos': 'left', 'plot_boundaries': True
         }
         if self.args.config_sheet:
             # Config sheet
@@ -151,8 +152,8 @@ class MapWthInsetFigure:
             self.config_dict.update({
                 'plot_sea': True, 'sea_color': "#88b5e0", 'plot_reference_reefs': True,
                 'reference_reef_color': '#003366', 'plot_land': True, 'land_color': 'white',
-                'plot_grid_lines': True, 'x_grid_line_pos': None, 'y_grid_line_pos': None,
-                'x_grid_lab_pos': 'bottom', 'y_grid_lab_pos': 'left', 'plot_boundaries': True
+                'plot_grid_lines': True, 'lon_grid_line_pos': None, 'lat_grid_line_pos': None,
+                'lon_grid_lab_pos': 'bottom', 'lat_grid_lab_pos': 'left', 'plot_boundaries': True
             })
             self.user_site_dict = {}
             self.site_df = None
@@ -395,8 +396,8 @@ class MapWthInsetFigure:
         Config params are:
         'bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
                 'reference_reef_color', 'reference_reef_patch_type', 'plot_land', 'land_color',
-                'plot_grid_lines', 'x_grid_line_pos', 'y_grid_line_pos',
-                'x_grid_lab_pos', 'y_grid_lab_pos', 'plot_boundaries'
+                'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
+                'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries'
         """
         self._check_bounds()
         self._check_bool_params()
@@ -416,42 +417,43 @@ class MapWthInsetFigure:
                 self._set_default_param(param='reference_reef_patch_type')
 
     def _check_grid_line_coords(self):
-        for g_line_cords_param in ['x_grid_line_pos', 'y_grid_line_pos']:
+        for g_line_cords_param in ['lon_grid_line_pos', 'lat_grid_line_pos']:
             cl_param_set, config_param_set = self._param_set(param=g_line_cords_param)
             self._set_config_param(param=g_line_cords_param, cl_param=cl_param_set, config_param=config_param_set)
         self._check_valid_grid_line_coords()
 
     def _check_valid_grid_line_coords(self):
         if self.config_dict['plot_grid_lines']:
-            try:
-                assert (len(self.config_dict['x_grid_line_pos'].split(',')) > 0)
-                [float(_) for _ in self.config_dict['x_grid_line_pos'].split(',')]
-                assert (len(self.config_dict['y_grid_line_pos'].split(',')) > 0)
-                [float(_) for _ in self.config_dict['y_grid_line_pos'].split(',')]
-            except AssertionError:
-                print("WARNING: There is a problem with the formatting of your grid line coordinates.")
-                print('Default coordinates will be used.')
-                self.config_dict['x_grid_line_pos'] = None
-                self.config_dict['y_grid_line_pos'] = None
+            if self.config_dict['lon_grid_line_pos'] and self.config_dict['lat_grid_line_pos']:
+                try:
+                    assert (len(self.config_dict['lon_grid_line_pos'].split(',')) > 0)
+                    [float(_) for _ in self.config_dict['lon_grid_line_pos'].split(',')]
+                    assert (len(self.config_dict['lat_grid_line_pos'].split(',')) > 0)
+                    [float(_) for _ in self.config_dict['lat_grid_line_pos'].split(',')]
+                except AssertionError:
+                    print("WARNING: There is a problem with the formatting of your grid line coordinates.")
+                    print('Default coordinates will be used.')
+                    self.config_dict['lon_grid_line_pos'] = None
+                    self.config_dict['lat_grid_line_pos'] = None
 
     def _check_grid_lab_pos(self):
         """
         Check for a user input for the grid_lab_pos params and set to default if not.
         """
-        for g_lab_pos_param in ['x_grid_lab_pos', 'y_grid_lab_pos']:
+        for g_lab_pos_param in ['lon_grid_lab_pos', 'lat_grid_lab_pos']:
             cl_param_set, config_param_set = self._param_set(param=g_lab_pos_param)
             self._set_config_param(param=g_lab_pos_param, cl_param=cl_param_set, config_param=config_param_set)
         self._check_valid_grid_lab_pos()
 
     def _check_valid_grid_lab_pos(self):
         try:
-            assert (self.config_dict['x_grid_lab_pos'] in ['bottom', 'top'])
+            assert (self.config_dict['lon_grid_lab_pos'] in ['bottom', 'top'])
         except AssertionError:
-            raise RuntimeError("x_grid_lab_pos must be 'bottom' or 'top'")
+            raise RuntimeError("lon_grid_lab_pos must be 'bottom' or 'top'")
         try:
-            assert (self.config_dict['y_grid_lab_pos'] in ['left', 'right'])
+            assert (self.config_dict['lat_grid_lab_pos'] in ['left', 'right'])
         except AssertionError:
-            raise RuntimeError("y_grid_lab_pos must be 'left' or 'right'")
+            raise RuntimeError("lat_grid_lab_pos must be 'left' or 'right'")
 
     def _check_color_params(self):
         """
@@ -475,10 +477,14 @@ class MapWthInsetFigure:
             self._check_valid_bool_param(bool_param)
 
     def _check_valid_bool_param(self, bool_param):
-        try:
-            assert (type(self.config_dict[bool_param]) is bool)
-        except AssertionError:
-            raise RuntimeError(f"{bool_param} must be either TRUE or FALSE.")
+        if self.config_dict[bool_param] in ['TRUE', 'true', 'True', 'T', 't']:
+            self.config_dict[bool_param] = True
+        elif self.config_dict[bool_param] in ['FALSE', 'false', 'False', 'F', 'f']:
+            self.config_dict[bool_param] = False
+        elif type(self.config_dict[bool_param] == bool):
+            pass
+        else:
+            raise ValueError(f"{bool_param} must be either TRUE or FALSE.")
 
     def _check_bounds(self):
         # Check to see if the bounds are set by either the config_sheet or the command line
@@ -581,31 +587,120 @@ class MapWthInsetFigure:
         print(f'{param} set to: {self.config_dict[param]}')
 
     @staticmethod
-    def _define_additional_args(parser):
+    def _define_config_args(parser):
+        """
+        Command line user input allows for all map config params to be set.
+
+        'bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
+        'reference_reef_color', 'reference_reef_patch_type', 'plot_land', 'land_color',
+        'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
+        'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries'
+        """
+        parser.add_argument(
+            '--bounds',
+            help='Comma delimited  coordinate boundaries in decimal degrees (N/E)\n'
+                 'in the order of westernmost, easternmost, southermost, northernmost\n.'
+                 'E.g. For bounds that encapsulate the Red Sea: 32,45,12,30\n'
+                 'E.g. For bounds that encapsulate the GBR: 141,155,-25,-10.19\n'
+                 '[-180, 180, -90, 90]',
+        )
+        parser.add_argument(
+            '--plot-sea',
+            help='Whether to plot the sea on the map. TRUE|FALSE. [TRUE]',
+            required=False
+        )
+        parser.add_argument(
+            '--sea-color',
+            help='Sea color as valid matplotlib color.\n'
+                 'See here for valid matplotlib color formats: https://matplotlib.org/2.0.2/api/colors_api.html.\n'
+                 '[#88b5e0]',
+            required=False
+        )
+        parser.add_argument(
+            '--plot-reference-reefs',
+            help='Whether to plot the reference reefs on the map. TRUE|FALSE. [TRUE]',
+            required=False
+        )
+        parser.add_argument(
+            '--reference-reef-color',
+            help='Reference reef color as valid matplotlib color.\n'
+                 'See here for valid matplotlib color formats: https://matplotlib.org/2.0.2/api/colors_api.html.\n'
+                 '[#003366]',
+            required=False
+        )
+        parser.add_argument(
+            '--plot-land',
+            help='Whether to plot land on the map. TRUE|FALSE. [TRUE]',
+            required=False
+        )
+        parser.add_argument(
+            '--land-color',
+            help='Land color as valid matplotlib color.\n'
+                 'See here for valid matplotlib color formats: https://matplotlib.org/2.0.2/api/colors_api.html.\n'
+                 '[white]',
+            required=False
+        )
+        parser.add_argument(
+            '--plot-grid-lines',
+            help='Whether to plot grid lines on the map. TRUE|FALSE. [TRUE]',
+            required=False
+        )
+        parser.add_argument(
+            '--lon-grid-line-pos',
+            help='Comma delimited  coordinates for the longitude grid lines in decimal degrees (N/E)\n'
+                 'By default, grid line positions will be plotted automatically'
+        )
+        parser.add_argument(
+            '--lat-grid-line-pos',
+            help='Comma delimited  coordinates for the latitude grid lines in decimal degrees (N/E)\n'
+                 'By default, grid line positions will be plotted automatically'
+        )
+        parser.add_argument(
+            '--lon-grid-lab-pos',
+            help='Which axis to plot the longitude grid lines on. top|bottom. [bottom]',
+            required=False
+        )
+        parser.add_argument(
+            '--lat-grid-lab-pos',
+            help='Which axis to plot the latitude grid lines on. left|right. [left]',
+            required=False
+        )
+        parser.add_argument(
+            '--plot-boundaries',
+            help='Whether to plot country boundaries on the map. TRUE|FALSE. [TRUE]',
+            required=False
+        )
+        
+
+    @staticmethod
+    def _define_runtime_args(parser):
+        """
+        User specification of:
+            config and site sheet paths
+            figure output dir
+            reference reef shape file input dir
+            whether to plot ref reefs as points
+        """
         parser.add_argument(
             '--config-sheet',
-            help='The full path to the .xlsx file that contains the configurations for the map',
+            help='The full path to the .xlsx or .tsv file that contains the user configurations for the map',
+            required=False
+        )
+        parser.add_argument(
+            '--site-sheet',
+            help='The full path to the .xlsx or .tsv file that contains the user site data',
             required=False
         )
         parser.add_argument(
             '--fig-out-dir',
             help='The full path to the directory where the map output figures will be saved. '
-                 'A .svg and a .png file will be created with a time stamp.',
-            default=None
+                 'A .svg and a .png file will be created with a time stamp.'
         )
         parser.add_argument(
             '--ref-reef-dir',
             help='The full path to the directory containing the reference reef shapefile data.'
                  'Default is current working directory. The dataset can be downloaded from: '
-                 'https://data.unep-wcmc.org/datasets/1',
-            default=None
-        )
-        parser.add_argument(
-            '--bounds',
-            help='Comma delimited  coordinate boundaries in decimal degrees (N/E)\n'
-                 'in the order of westernmost, easternmost, southermost, northernmost\n.'
-                 'E.g. For bounds that encapsulate the Red Sea: 32,45,12,30',
-            default=None
+                 'https://data.unep-wcmc.org/datasets/1'
         )
         parser.add_argument(
             '--points',
@@ -818,20 +913,20 @@ class MapWthInsetFigure:
         to manually change the xlabels_bottom and ylabels_right attributes of this Gridliner object.
         We then draw it by adding it to the GeoAxis._gridliners list.
         """
-        if self.config_dict['x_grid_line_pos'] and self.config_dict['y_grid_line_pos']:
-            xlocs = mticker.FixedLocator([float(_) for _ in self.config_dict['x_grid_line_pos'].split(',')])
-            ylocs = mticker.FixedLocator([float(_) for _ in self.config_dict['y_grid_line_pos'].split(',')])
+        if self.config_dict['lon_grid_line_pos'] and self.config_dict['lat_grid_line_pos']:
+            xlocs = mticker.FixedLocator([float(_) for _ in self.config_dict['lon_grid_line_pos'].split(',')])
+            ylocs = mticker.FixedLocator([float(_) for _ in self.config_dict['lat_grid_line_pos'].split(',')])
             g1 = Gridliner(
                 axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
                 xlocator=xlocs, ylocator=ylocs)
         else:
             g1 = Gridliner(
                 axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True)
-        if self.config_dict['x_grid_lab_pos'] == 'bottom':
+        if self.config_dict['lon_grid_lab_pos'] == 'bottom':
             g1.top_labels = False
         else:
             g1.bottom_labels = False
-        if self.config_dict['y_grid_lab_pos'] == 'left':
+        if self.config_dict['lat_grid_lab_pos'] == 'left':
             g1.right_labels = False
         else:
             g1.left_labels = False
