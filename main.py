@@ -188,6 +188,31 @@ class MapWthInsetFigure:
         """
         for site in self.site_df.index:
             self._check_site_lat_lon(site)
+            self._check_site_marker_radius(site)
+            self._check_site_marker_colors(site)
+
+    def _check_site_marker_colors(self, site):
+        if not is_color_like(self.site_df.at[site, 'facecolor']):
+            raise RuntimeError(
+                f"facecolor {self.site_df.at[site, 'facecolor']} for site {site} is not a valid color.\n"
+                f"Please check your site sheet."
+            )
+        if not is_color_like(self.site_df.at[site, 'edgecolor']):
+            raise RuntimeError(
+                f"edgecolor {self.site_df.at[site, 'edgecolor']} for site {site} is not a valid color.\n"
+                f"Please check your site sheet."
+            )
+
+    def _check_site_marker_radius(self, site):
+        if not pd.isnull(self.site_df.at[site, 'radius_in_deg_lat']):
+            try:
+                float(self.site_df.at[site, 'radius_in_deg_lat'])
+            except ValueError:
+                raise RuntimeError(f"Unable to convert marker radius for {site} into decimal number.\n"
+                                   f"Please check your site sheet.")
+        else:
+            raise RuntimeError(f'No valid marker radius provided for site {site}.\n'
+                               f'Please check your site sheet.')
 
     def _check_site_lat_lon(self, site):
         lat = self.site_df.at[site, 'latitude_deg_n']
