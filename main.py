@@ -6,8 +6,6 @@ We will aim for it to take command inputs of the map bounding latitudes and long
 By default we will plot the world reefs on the map
 We will also want to be able to add additional reefs to the map through some sort of csv import
 
-# TODO finish coding up verification of the config parameters
-# make args for the config parameters
 # Finish documentation
 # produce examples
 """
@@ -175,7 +173,8 @@ class MapWthInsetFigure:
             'plot_land': True, 'land_color': 'white',
             'plot_grid_lines': True, 'lon_grid_line_pos': None,
             'lat_grid_line_pos': None, 'lon_grid_lab_pos': 'bottom',
-            'lat_grid_lab_pos': 'left', 'plot_boundaries': True, 'reference_reef_patch_type': 'polygon'
+            'lat_grid_lab_pos': 'left', 'plot_boundaries': True,
+            'reference_reef_patch_type': 'polygon', 'user_site_labels': True
         }
 
     def _check_site_sheet(self):
@@ -491,7 +490,9 @@ class MapWthInsetFigure:
                 self._set_default_param(param=c_param)
 
     def _check_bool_params(self):
-        for bool_param in ['plot_sea', 'plot_reference_reefs', 'plot_land', 'plot_grid_lines', 'plot_boundaries']:
+        for bool_param in [
+            'plot_sea', 'plot_reference_reefs', 'plot_land', 'plot_grid_lines', 'plot_boundaries', 'user_site_labels'
+        ]:
             cl_param_set, config_param_set = self._param_set(param=bool_param)
             self._set_config_param(param=bool_param, cl_param=cl_param_set, config_param=config_param_set)
             self._check_valid_bool_param(bool_param)
@@ -690,6 +691,11 @@ class MapWthInsetFigure:
             help='Whether to plot country boundaries on the map. TRUE|FALSE. [TRUE]',
             required=False
         )
+        parser.add_argument(
+            '--user-site-labels',
+            help='Whether to annotate the user sites with labels. TRUE|FALSE. [TRUE]',
+            required=False
+        )
 
     @staticmethod
     def _define_runtime_args(parser):
@@ -735,11 +741,11 @@ class MapWthInsetFigure:
         print('Annotations complete\n')
         if self.config_dict['plot_grid_lines']:
             self._put_gridlines_on_large_map_ax()
-        # TODO needs to be made dynamic and linked to input
-        # self._annotate_map_with_sites()
         self._add_user_reefs()
         self._add_reference_reefs()
+        self._save_figs()
 
+    def _save_figs(self):
         print(f'saving to {self.fig_out_path_png}')
         plt.savefig(self.fig_out_path_png, dpi=600)
         print(f'saving to {self.fig_out_path_svg}')
@@ -752,6 +758,10 @@ class MapWthInsetFigure:
         Line widths should be proportional to the marker size
         We should attempt to add the points in order of the largest first to minimise overlap
         """
+        self._plot_user_points()
+        self._annotate_site_labels()
+
+    def _plot_user_points(self):
         print('plotting user reefs\n')
         line_widths = ((self.site_df['radius_in_deg_lat'].astype(
             float) * 2) * self.coord_to_point_scaler) * 0.1
@@ -764,6 +774,17 @@ class MapWthInsetFigure:
             edgecolors=self.site_df['edgecolor'], zorder=3,
             linewidths=line_widths
         )
+
+    def _annotate_site_labels(self):
+        if self.config_dict['user_site_labels']:
+            for ind in self.site_df.index:
+                self.large_map_ax.annotate(
+                    ind,
+                    (
+                        self.site_df.at[ind, 'longitude_deg_e'] + self.site_df.at[ind, 'radius_in_deg_lat'],
+                        self.site_df.at[ind, 'latitude_deg_n'] + self.site_df.at[ind, 'radius_in_deg_lat']
+                    )
+                )
 
     def _add_reference_reefs(self):
         """
@@ -980,19 +1001,6 @@ class MapWthInsetFigure:
         else:
             g1.left_labels = False
         self.large_map_ax._gridliners.append(g1)
-
-    # def _annotate_map_with_sites(self):
-    #     # TODO tie this in to an input of some sort so that it can be user provided
-    #     for site in ['ICN']:
-    #         if site != 'PrT':
-    #             self.large_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
-    #                                    self.site_marker_dict[site], markerfacecolor=self.site_color_dict[site],
-    #                                    markeredgecolor='black', markersize=6, markeredgewidth=0.2)
-    #         else:
-    #             self.large_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
-    #                                    self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
-    #                                    markersize=8)
-
 
 mwif = MapWthInsetFigure()
 mwif.draw_map()
