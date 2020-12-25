@@ -111,7 +111,7 @@ class MapWthInsetFigure:
             'plot_land': True, 'land_color': 'white',
             'plot_grid_lines': True, 'lon_grid_line_pos': None,
             'lat_grid_line_pos': None, 'lon_grid_lab_pos': 'bottom',
-            'lat_grid_lab_pos': 'left', 'plot_boundaries': True
+            'lat_grid_lab_pos': 'left', 'plot_boundaries': True, 'reference_reef_patch_type': 'polygon'
         }
         if self.args.config_sheet:
             # Config sheet
@@ -127,7 +127,7 @@ class MapWthInsetFigure:
             if self.args.site_sheet:
                 print('Reading in site sheet')
                 if self.args.site_sheet.endswith('.tsv'):
-                    self.site_df = pd.read_csv(self.args.config_sheet, index_col=0, sep='\t').sort_values('radius_in_deg_lat', axis=0, ascending=False)
+                    self.site_df = pd.read_csv(self.args.site_sheet, index_col=0, sep='\t').sort_values('radius_in_deg_lat', axis=0, ascending=False)
                 elif self.args.site_sheet.endswith('.xlsx'):
                     self.site_df = pd.read_excel(
                         self.args.site_sheet, sheet_name='user_site', index_col=0
@@ -141,34 +141,35 @@ class MapWthInsetFigure:
             # no config sheet provided
             # Use default dict
             self.config_dict = {}
-            if self.args.bounds:
-                bounds = [float(_) for _ in self.args.bounds.split(',')]
-                self.config_dict.update(
-                    {'x1_bound': bounds[0], 'x2_bound': bounds[1], 'y1_bound': bounds[2], 'y2_bound': bounds[3]}
-                )
-            else:
-                self.config_dict.update({'x1_bound': -180, 'x2_bound': 180, 'y1_bound': -90, 'y2_bound': 90})
-            self._check_bounds()
-            self.config_dict.update({
-                'plot_sea': True, 'sea_color': "#88b5e0", 'plot_reference_reefs': True,
-                'reference_reef_color': '#003366', 'plot_land': True, 'land_color': 'white',
-                'plot_grid_lines': True, 'lon_grid_line_pos': None, 'lat_grid_line_pos': None,
-                'lon_grid_lab_pos': 'bottom', 'lat_grid_lab_pos': 'left', 'plot_boundaries': True
-            })
-            self.user_site_dict = {}
-            self.site_df = None
+            self._setup_config()
+            # if self.args.bounds:
+            #     bounds = [float(_) for _ in self.args.bounds.split(',')]
+            #     self.config_dict.update(
+            #         {'x1_bound': bounds[0], 'x2_bound': bounds[1], 'y1_bound': bounds[2], 'y2_bound': bounds[3]}
+            #     )
+            # else:
+            #     self.config_dict.update({'x1_bound': -180, 'x2_bound': 180, 'y1_bound': -90, 'y2_bound': 90})
+            # self._check_bounds()
+            # self.config_dict.update({
+            #     'plot_sea': True, 'sea_color': "#88b5e0", 'plot_reference_reefs': True,
+            #     'reference_reef_color': '#003366', 'plot_land': True, 'land_color': 'white',
+            #     'plot_grid_lines': True, 'lon_grid_line_pos': None, 'lat_grid_line_pos': None,
+            #     'lon_grid_lab_pos': 'bottom', 'lat_grid_lab_pos': 'left', 'plot_boundaries': True
+            # })
+            # self.user_site_dict = {}
+            # self.site_df = None
 
-        self.bounds = [
-            self.config_dict['x1_bound'], self.config_dict['x2_bound'],
-            self.config_dict['y1_bound'], self.config_dict['y2_bound']
-        ]
+        # self.config_dict['bounds'] = [
+        #     self.config_dict['x1_bound'], self.config_dict['x2_bound'],
+        #     self.config_dict['y1_bound'], self.config_dict['y2_bound']
+        # ]
 
         self.reference_reef_shape_file_path = self._find_shape_path()
 
         self.fig = self._setup_map_figure()
 
         self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(), zorder=1)
-        self.large_map_ax.set_extent(extents=(self.bounds[0], self.bounds[1], self.bounds[2], self.bounds[3]))
+        self.large_map_ax.set_extent(extents=(self.config_dict['bounds'][0], self.config_dict['bounds'][1], self.config_dict['bounds'][2], self.config_dict['bounds'][3]))
         # Scalar for converting the user inputted coordinate radii to point format for plotting
         self.coord_to_point_scaler = self._calc_scaler()
 
@@ -328,8 +329,8 @@ class MapWthInsetFigure:
         Set fig size ratios according to lat lon ratios
         """
         big_fig_size = 10
-        lat = self.bounds[3] - self.bounds[2]
-        lon = self.bounds[1] - self.bounds[0]
+        lat = self.config_dict['bounds'][3] - self.config_dict['bounds'][2]
+        lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
         # figsize is w x h
         if lat > lon:
             fig = plt.figure(figsize=((lon / lat) * big_fig_size, big_fig_size))
@@ -404,9 +405,9 @@ class MapWthInsetFigure:
         self._check_color_params()
         self._check_grid_lab_pos()
         self._check_grid_line_coords()
-        self._check_ref_reef_path_type()
+        self._check_ref_reef_patch_type()
 
-    def _check_ref_reef_path_type(self):
+    def _check_ref_reef_patch_type(self):
         """
         Check user provided valid value for reference_reef_patch_type or set default
         """
@@ -423,17 +424,25 @@ class MapWthInsetFigure:
         self._check_valid_grid_line_coords()
 
     def _check_valid_grid_line_coords(self):
+        """
+        Check user supplied grid line coordinates are valid else use default
+        """
         if self.config_dict['plot_grid_lines']:
-            if self.config_dict['lon_grid_line_pos'] and self.config_dict['lat_grid_line_pos']:
+            if self.config_dict['lon_grid_line_pos'] is not None:
                 try:
                     assert (len(self.config_dict['lon_grid_line_pos'].split(',')) > 0)
                     [float(_) for _ in self.config_dict['lon_grid_line_pos'].split(',')]
-                    assert (len(self.config_dict['lat_grid_line_pos'].split(',')) > 0)
-                    [float(_) for _ in self.config_dict['lat_grid_line_pos'].split(',')]
-                except AssertionError:
-                    print("WARNING: There is a problem with the formatting of your grid line coordinates.")
+                except Exception:
+                    print("WARNING: There is a problem with the formatting of your longitude grid line coordinates.")
                     print('Default coordinates will be used.')
                     self.config_dict['lon_grid_line_pos'] = None
+            if self.config_dict['lat_grid_line_pos'] is not None:
+                try:
+                    assert (len(self.config_dict['lat_grid_line_pos'].split(',')) > 0)
+                    [float(_) for _ in self.config_dict['lat_grid_line_pos'].split(',')]
+                except Exception:
+                    print("WARNING: There is a problem with the formatting of your latitude grid line coordinates.")
+                    print('Default coordinates will be used.')
                     self.config_dict['lat_grid_line_pos'] = None
 
     def _check_grid_lab_pos(self):
@@ -703,11 +712,10 @@ class MapWthInsetFigure:
                  'https://data.unep-wcmc.org/datasets/1'
         )
         parser.add_argument(
-            '--points',
-            help='When passed, reference reef will be plotted as a series of cirlces rather than Polygons.\n'
-                 'This can be helpful for maps that cover a larger area as'
-                 ' stroking paths can create some graphical aftefacts.',
-            action='store_true'
+            '--reference-reef-patch-type',
+            help='Whether to plot the reference reefs as polygon or circle patches.\n'
+                 'This can be helpful for maps that cover a larger area as '
+                 'stroking paths can create some graphical aftefacts. must be "polygon" or "point". [polygon]'
         )
 
     def draw_map(self):
@@ -770,13 +778,13 @@ class MapWthInsetFigure:
                         checked_count += 1
                         if checked_count % 1000 == 0:
                             new_time = time.time()
-                            print(f'{checked_count} reference reefs checked in {new_time-start_time}s')
+                            print(f'{checked_count} reference polygons checked in {new_time-start_time:.2f}s')
                             # if checked_count == 20000:
                             #     self._add_and_make_ref_reef_poly(coords=(point_coords_x, point_coords_y))
                         if self._if_within_bounds(polygon.bounds):
                             # each of the individual coords is a tup of tups
                             coords = polygon.exterior.coords.xy
-                            if self.args.points:
+                            if self.config_dict['reference_reef_patch_type'] == 'point':
                                 # Then we want to collect all of the xy points to plot as a scatter
                                 # and plot them as a single scatter at the end
                                 point_coords_x.append(np.array(coords[0]))
@@ -793,10 +801,10 @@ class MapWthInsetFigure:
                     checked_count += 1
                     if checked_count % 1000 == 0:
                         new_time = time.time()
-                        print(f'{checked_count} reference reefs checked in {new_time - start_time}s')
+                        print(f'{checked_count} reference polygons checked in {new_time - start_time:.2f}s')
                     if self._if_within_bounds(r.bounds):
                         coords = r.geometry.exterior.coords.xy
-                        if self.args.points:
+                        if self.config_dict['reference_reef_patch_type'] == 'point':
                             # Then we want to collect all of the xy points to plot as a scatter
                             # and plot them as a single scatter at the end
                             point_coords_x.append(np.array(coords[0]))
@@ -814,19 +822,19 @@ class MapWthInsetFigure:
                 error_count += 1
                 continue
 
-        if self.args.points:
-            # _add_and_make_ref_reef_poly will only return num_indi_points when self.args.points
+        if self.config_dict['reference_reef_patch_type'] == 'point':
+            # _add_and_make_ref_reef_poly will only return num_indi_points when self.config_dict['reference_reef_patch_type'] == 'point'
             num_indi_points = self._make_and_add_ref_reef_patches(coords=(point_coords_x, point_coords_y))
 
         print(f'\n{error_count} error producing records were discounted from the reference reefs')
-        if self.args.points:
+        if self.config_dict['reference_reef_patch_type'] == 'point':
             print(f'{reef_count} reference reefs were added to the plot as {num_indi_points} individual points')
         else:
             print(f'{reef_count} reference reefs were added to the plot')
 
     def _make_and_add_ref_reef_patches(self, coords, sizes=None):
         """
-        When self.args.points we will plot the reference reefs as cirlces on the map.
+        When self.config_dict['reference_reef_patch_type'] == 'point' we will plot the reference reefs as cirlces on the map.
         We were originally doing this using Circle patches and then either adding them to the plot
         as individual patches or as part of a PatchCollection. However, this is very slow when
         working with larger numbers of reefs. It is slow to add the patches to the ax, but it is
@@ -835,7 +843,7 @@ class MapWthInsetFigure:
         It is much faster to use scatter to plot the points. This also leads to a much faster write speed for the
         figure.
         """
-        if self.args.points:
+        if self.config_dict['reference_reef_patch_type'] == 'point':
             # For the size of the scatter
             coords_x = np.concatenate(coords[0])
             coords_y = np.concatenate(coords[1])
@@ -847,8 +855,8 @@ class MapWthInsetFigure:
             else:
                 # Then we are plotting the user reefs and we should work with a standard
                 # size. A sensible size is perhaps 1/500th of the shortest size
-                lat = self.bounds[3] - self.bounds[2]
-                lon = self.bounds[1] - self.bounds[0]
+                lat = self.config_dict['bounds'][3] - self.config_dict['bounds'][2]
+                lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
                 if lat > lon:
                     # Then we should work with 1/100 of the lon range
                     deg_size = lon/500
@@ -868,10 +876,10 @@ class MapWthInsetFigure:
         """
         Check bounds for a given polygon lie within the bounds for the map
         """
-        if bounds[0] > self.bounds[0]:
-            if bounds[1] > self.bounds[2]:
-                if bounds[2] < self.bounds[1]:
-                    if bounds[3] < self.bounds[3]:
+        if bounds[0] > self.config_dict['bounds'][0]:
+            if bounds[1] > self.config_dict['bounds'][2]:
+                if bounds[2] < self.config_dict['bounds'][1]:
+                    if bounds[3] < self.config_dict['bounds'][3]:
                         return True
         return False
     def _get_naural_earth_features_big_map(self):
