@@ -14,8 +14,6 @@ We will also want to be able to add additional reefs to the map through some sor
 
 import os
 import pandas as pd
-import matplotlib as mpl
-mpl.use('TKAgg')
 import matplotlib.pyplot as plt
 import argparse
 # NB the pip cartopy install seems to be broken as it doesn't install the required libararies.
@@ -25,17 +23,19 @@ from cartopy.mpl.gridliner import Gridliner
 import matplotlib.ticker as mticker
 import cartopy.crs as ccrs
 import cartopy
-from matplotlib.patches import Polygon, Circle
-from matplotlib.collections import PatchCollection
+from matplotlib.patches import Polygon
 from datetime import datetime
 from cartopy.io.shapereader import Reader
-import sys
 import numpy as np
 import time
 from matplotlib.colors import is_color_like
 import re
+import matplotlib as mpl
+
+mpl.use('TKAgg')
 
 __version__ = "v0.1.0"
+
 
 class MapWthInsetFigure:
     def __init__(self):
@@ -92,16 +92,80 @@ class MapWthInsetFigure:
         self._define_config_args(parser)
         self.args = parser.parse_args()
         self.root_dir = os.getcwd()
-        self.date_time = str(datetime.now()).split('.')[0].replace('-','').replace(' ','T').replace(':','')
+        self.date_time = str(datetime.now()).split('.')[0].replace('-', '').replace(' ', 'T').replace(':', '')
 
         # User input
         # We will allow user configurations through both the command line and a config file
         # We should prioritise command line input
         # Probably the clearest and most logical way to do this will be to go parameter by parameter
-        self.config_params = ['bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
-                'reference_reef_color', 'reference_reef_patch_type', 'plot_land', 'land_color',
-                'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
-                'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries']
+        self._set_param_defaults_dict()
+        if self.args.config_sheet:
+            self._config_setup_with_sheet()
+        else:
+            self._config_setup_without_sheet()
+
+        if self.args.site_sheet:
+            self._user_site_setup()
+        else:
+            print('No user site sheet provided. User sites will not be plotted.')
+
+        self.reference_reef_shape_file_path = self._find_shape_path()
+
+        self.fig = self._setup_map_figure()
+
+        self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(), zorder=1)
+        self.large_map_ax.set_extent(extents=(
+            self.config_dict['bounds'][0], self.config_dict['bounds'][1], self.config_dict['bounds'][2],
+            self.config_dict['bounds'][3]))
+        # Scalar for converting the user inputted coordinate radii to point format for plotting
+        self.coord_to_point_scaler = self._calc_scaler()
+
+        self._setup_fig_output_paths()
+
+    def _setup_fig_output_paths(self):
+        if not self.args.fig_out_dir:
+            self.fig_out_path_svg = os.path.join(self.root_dir, f'map_out_{self.date_time}.svg')
+            self.fig_out_path_png = os.path.join(self.root_dir, f'map_out_{self.date_time}.png')
+        else:
+            if not os.path.exists(os.path.abspath(self.args.fig_out_dir)):
+                print(f'Creating {self.args.fig_out_dir}')
+                os.makedirs(os.path.abspath(self.args.fig_out_dir))
+            self.fig_out_path_svg = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.svg')
+            self.fig_out_path_png = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.png')
+
+    def _user_site_setup(self):
+        print('Reading in site sheet')
+        if self.args.site_sheet.endswith('.tsv'):
+            self.site_df = pd.read_csv(self.args.site_sheet, index_col=0, sep='\t').sort_values(
+                'radius_in_deg_lat', axis=0, ascending=False)
+        elif self.args.site_sheet.endswith('.xlsx'):
+            self.site_df = pd.read_excel(
+                self.args.site_sheet, sheet_name='user_site', index_col=0
+            ).sort_values('radius_in_deg_lat', axis=0, ascending=False)
+        print('Checking user sites...')
+        self._check_site_sheet()
+        print('User site checks complete.')
+
+    def _config_setup_without_sheet(self):
+        # no config sheet provided
+        # Use default dict
+        self.config_dict = {}
+        self._setup_config()
+
+    def _config_setup_with_sheet(self):
+        # Config sheet
+        print('Checking user config...')
+        if self.args.config_sheet.endswith('.tsv'):
+            config_df = pd.read_csv(self.args.config_sheet, index_col=0, sep='\t')
+        elif self.args.config_sheet.endswith('.xlsx'):
+            config_df = pd.read_excel(self.args.config_sheet, sheet_name='user_config', index_col=0)
+        else:
+            raise RuntimeError("Unrecognised format for config-sheet. Please provided .xlsx or .tsv.")
+        self.config_dict = {k: v for k, v in zip(config_df.index.values, config_df['value'].values)}
+        self._setup_config()
+        print('User config checks complete.')
+
+    def _set_param_defaults_dict(self):
         self.param_defaults_dict = {
             'bounds': [-180, 180, -90, 90],
             'plot_sea': True,
@@ -113,76 +177,6 @@ class MapWthInsetFigure:
             'lat_grid_line_pos': None, 'lon_grid_lab_pos': 'bottom',
             'lat_grid_lab_pos': 'left', 'plot_boundaries': True, 'reference_reef_patch_type': 'polygon'
         }
-        if self.args.config_sheet:
-            # Config sheet
-            print('Checking user config...')
-            if self.args.config_sheet.endswith('.tsv'):
-                config_df = pd.read_csv(self.args.config_sheet, index_col=0, sep='\t')
-            elif self.args.config_sheet.endswith('.xlsx'):
-                config_df = pd.read_excel(self.args.config_sheet, sheet_name='user_config', index_col=0)
-            self.config_dict = {k: v for k, v in zip(config_df.index.values, config_df['value'].values)}
-            self._setup_config()
-            print('User config checks complete.')
-
-            if self.args.site_sheet:
-                print('Reading in site sheet')
-                if self.args.site_sheet.endswith('.tsv'):
-                    self.site_df = pd.read_csv(self.args.site_sheet, index_col=0, sep='\t').sort_values('radius_in_deg_lat', axis=0, ascending=False)
-                elif self.args.site_sheet.endswith('.xlsx'):
-                    self.site_df = pd.read_excel(
-                        self.args.site_sheet, sheet_name='user_site', index_col=0
-                    ).sort_values('radius_in_deg_lat', axis=0, ascending=False)
-                print('Checking user sites...')
-                self._check_site_sheet()
-                print('User site checks complete.')
-            else:
-                print('No user site sheet provided. User sites will not be plotted.')
-        else:
-            # no config sheet provided
-            # Use default dict
-            self.config_dict = {}
-            self._setup_config()
-            # if self.args.bounds:
-            #     bounds = [float(_) for _ in self.args.bounds.split(',')]
-            #     self.config_dict.update(
-            #         {'x1_bound': bounds[0], 'x2_bound': bounds[1], 'y1_bound': bounds[2], 'y2_bound': bounds[3]}
-            #     )
-            # else:
-            #     self.config_dict.update({'x1_bound': -180, 'x2_bound': 180, 'y1_bound': -90, 'y2_bound': 90})
-            # self._check_bounds()
-            # self.config_dict.update({
-            #     'plot_sea': True, 'sea_color': "#88b5e0", 'plot_reference_reefs': True,
-            #     'reference_reef_color': '#003366', 'plot_land': True, 'land_color': 'white',
-            #     'plot_grid_lines': True, 'lon_grid_line_pos': None, 'lat_grid_line_pos': None,
-            #     'lon_grid_lab_pos': 'bottom', 'lat_grid_lab_pos': 'left', 'plot_boundaries': True
-            # })
-            # self.user_site_dict = {}
-            # self.site_df = None
-
-        # self.config_dict['bounds'] = [
-        #     self.config_dict['x1_bound'], self.config_dict['x2_bound'],
-        #     self.config_dict['y1_bound'], self.config_dict['y2_bound']
-        # ]
-
-        self.reference_reef_shape_file_path = self._find_shape_path()
-
-        self.fig = self._setup_map_figure()
-
-        self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(), zorder=1)
-        self.large_map_ax.set_extent(extents=(self.config_dict['bounds'][0], self.config_dict['bounds'][1], self.config_dict['bounds'][2], self.config_dict['bounds'][3]))
-        # Scalar for converting the user inputted coordinate radii to point format for plotting
-        self.coord_to_point_scaler = self._calc_scaler()
-
-        # figure output paths
-        if not self.args.fig_out_dir:
-            self.fig_out_path_svg = os.path.join(self.root_dir, f'map_out_{self.date_time}.svg')
-            self.fig_out_path_png = os.path.join(self.root_dir, f'map_out_{self.date_time}.png')
-        else:
-            if not os.path.exists(os.path.abspath(self.args.fig_out_dir)):
-                print(f'Creating {self.args.fig_out_dir}')
-                os.makedirs(os.path.abspath(self.args.fig_out_dir))
-            self.fig_out_path_svg = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.svg')
-            self.fig_out_path_png = os.path.join(self.args.fig_out_dir, f'map_out_{self.date_time}.png')
 
     def _check_site_sheet(self):
         """
@@ -225,46 +219,61 @@ class MapWthInsetFigure:
             self.site_df.at[site, 'latitude_deg_n'] = float(lat)
             self.site_df.at[site, 'longitude_deg_e'] = float(lon)
         except ValueError:
-            print("WARNING: Unable to convert lat or lon value for {site} to decimal degrees.")
-            print("Attempting to fix the format")
-            try:
-                if 'N' in lat:
-                    new_lat = float(lat.replace('N', '').replace(chr(176), ''))
-                    # lat_float should be positive
-                    if new_lat < 0:
-                        new_lat = new_lat * -1
-                elif 'S' in lat:
-                    new_lat = float(lat.replace('S', '').replace(chr(176), ''))
-                    # lat_float should be negative
-                    if new_lat > 0:
-                        new_lat = new_lat * -1
-                else:
-                    # There was not an N or S found in the lat so we should raise error
-                    raise RuntimeError(f'Unable to fix lat lon format for {site}')
-                if 'E' in lon:
-                    new_lon = float(lon.replace('E', '').replace(chr(176), ''))
-                    # lon_float should be positive
-                    if new_lon < 0:
-                        new_lon = new_lon * -1
-                elif 'W' in lon:
-                    new_lon = float(lon.replace('W', '').replace(chr(176), ''))
-                    # lon_float should be negative
-                    if new_lon > 0:
-                        new_lon = new_lon * -1
-                else:
-                    # There was not an N or S found in the lat so we should raise error
-                    raise RuntimeError
-            except Exception:
-                # see if they are in proper dms format
-                try:
-                    new_lat = self.dms2dec(lat)
-                    new_lon = self.dms2dec(lon)
-                # if all this fails, convert to 999
-                except Exception:
-                    raise RuntimeError(f'Unable to fix lat lon format for {site}')
-            print(f"For {site}:\n"
-                  f"\tlatitude was converted from {lat} --> {new_lat}\n"
-                  f"\tlongitude was converted from {lon} --> {new_lon}")
+            self._attempt_fix_lat_lon_format(lat, lon, site)
+
+    def _attempt_fix_lat_lon_format(self, lat, lon, site):
+        print("WARNING: Unable to convert lat or lon value for {site} to decimal degrees.")
+        print("Attempting to fix the format")
+        try:
+            new_lat = self._attempt_lat_fix(lat, site)
+            new_lon = self._attempt_lon_fix(lon)
+        except Exception:
+            # see if they are in proper dms format
+            new_lat, new_lon = self._attempt_convert_from_dms(lat, lon, new_lat, new_lon, site)
+        print(f"For {site}:\n"
+              f"\tlatitude was converted from {lat} --> {new_lat}\n"
+              f"\tlongitude was converted from {lon} --> {new_lon}")
+
+    def _attempt_convert_from_dms(self, lat, lon, new_lat, new_lon, site):
+        try:
+            new_lat = self.dms2dec(lat)
+            new_lon = self.dms2dec(lon)
+        # if all this fails, convert to 999
+        except Exception:
+            raise RuntimeError(f'Unable to fix lat lon format for {site}')
+        return new_lat, new_lon
+
+    def _attempt_lon_fix(self, lon):
+        if 'E' in lon:
+            new_lon = float(lon.replace('E', '').replace(chr(176), ''))
+            # lon_float should be positive
+            if new_lon < 0:
+                new_lon = new_lon * -1
+        elif 'W' in lon:
+            new_lon = float(lon.replace('W', '').replace(chr(176), ''))
+            # lon_float should be negative
+            if new_lon > 0:
+                new_lon = new_lon * -1
+        else:
+            # There was not an N or S found in the lat so we should raise error
+            raise RuntimeError
+        return new_lon
+
+    def _attempt_lat_fix(self, lat, site):
+        if 'N' in lat:
+            new_lat = float(lat.replace('N', '').replace(chr(176), ''))
+            # lat_float should be positive
+            if new_lat < 0:
+                new_lat = new_lat * -1
+        elif 'S' in lat:
+            new_lat = float(lat.replace('S', '').replace(chr(176), ''))
+            # lat_float should be negative
+            if new_lat > 0:
+                new_lat = new_lat * -1
+        else:
+            # There was not an N or S found in the lat so we should raise error
+            raise RuntimeError(f'Unable to fix lat lon format for {site}')
+        return new_lat
 
     @staticmethod
     def dms2dec(dms_str):
@@ -362,7 +371,11 @@ class MapWthInsetFigure:
             return self._search_for_ref_reef_parent_data_dir(dir_to_search=dir_to_search)
 
     def _search_for_ref_reef_parent_data_dir(self, dir_to_search):
+        """
+        Try to find the directory that holds the subdirectories that lead to the refernce reef shape file.
+        """
         candidate_dirs = []
+        data_set_parent_dir = None
         for (dirpath, dirnames, filenames) in os.walk(dir_to_search):
             candidate_dirs.extend([os.path.join(dirpath, _) for _ in dirnames if 'WCMC008' in _])
 
@@ -413,7 +426,8 @@ class MapWthInsetFigure:
         """
         if self.config_dict['plot_reference_reefs']:
             cl_param_set, config_param_set = self._param_set(param='reference_reef_patch_type')
-            self._set_config_param(param='reference_reef_patch_type', cl_param=cl_param_set, config_param=config_param_set)
+            self._set_config_param(param='reference_reef_patch_type', cl_param=cl_param_set,
+                                   config_param=config_param_set)
             if not self.config_dict['reference_reef_patch_type'] in ['polygon', 'point']:
                 self._set_default_param(param='reference_reef_patch_type')
 
@@ -475,9 +489,6 @@ class MapWthInsetFigure:
             self._set_config_param(param=c_param, cl_param=cl_param_set, config_param=config_param_set)
             if not is_color_like(self.config_dict[c_param]):
                 self._set_default_param(param=c_param)
-        # User site colour params
-        # TODO check the site params
-
 
     def _check_bool_params(self):
         for bool_param in ['plot_sea', 'plot_reference_reefs', 'plot_land', 'plot_grid_lines', 'plot_boundaries']:
@@ -526,7 +537,7 @@ class MapWthInsetFigure:
             assert (self.config_dict['bounds'][2] < self.config_dict['bounds'][3])
         except AssertionError:
             raise RuntimeError('Check the format of your user config sheet.\n'
-                                'latitude and longitude valus must be in valid decimal degree format and\n'
+                               'latitude and longitude valus must be in valid decimal degree format and\n'
                                'southernmost bounds should be less than northernmost bound')
 
     def _set_config_param(self, param, cl_param, config_param):
@@ -679,7 +690,6 @@ class MapWthInsetFigure:
             help='Whether to plot country boundaries on the map. TRUE|FALSE. [TRUE]',
             required=False
         )
-        
 
     @staticmethod
     def _define_runtime_args(parser):
@@ -730,7 +740,6 @@ class MapWthInsetFigure:
         self._add_user_reefs()
         self._add_reference_reefs()
 
-
         print(f'saving to {self.fig_out_path_png}')
         plt.savefig(self.fig_out_path_png, dpi=600)
         print(f'saving to {self.fig_out_path_svg}')
@@ -745,7 +754,7 @@ class MapWthInsetFigure:
         """
         print('plotting user reefs\n')
         line_widths = ((self.site_df['radius_in_deg_lat'].astype(
-                float) * 2) * self.coord_to_point_scaler) * 0.1
+            float) * 2) * self.coord_to_point_scaler) * 0.1
         self.large_map_ax.scatter(
             x=self.site_df['longitude_deg_e'],
             y=self.site_df['latitude_deg_n'],
@@ -756,12 +765,16 @@ class MapWthInsetFigure:
             linewidths=line_widths
         )
 
-
     def _add_reference_reefs(self):
-        # We were working with shapely features and adding geometries but there were so many problems
-        # I advise to stay away form trying to get them working again.
-        # Instead we are now creating individual Polygon patches from the coordinates
-        # and adding them to the plot
+        """
+        Parse through the reference reef records from the shapely file, and if within bounds of the map
+        plot them on the map either as polygons or points depending on the user config.
+
+        NBWe were working with shapely features and adding geometries but there were so many problems
+        I advise to stay away form trying to get them working again.
+        Instead we are now creating individual Polygon patches from the coordinates or plotting a point (via scatter)
+        for each of the coordinate points that make up a reef polygon.
+        """
         print('Annotating reference reefs\n')
         reader = Reader(self.reference_reef_shape_file_path)
         error_count = 0
@@ -773,104 +786,129 @@ class MapWthInsetFigure:
         for r in reader.records():  # reader.records() produces a generator
             try:
                 if r.geometry.geom_type.lower() == 'multipolygon':
-                    # Create multiple matplotlib polygon objects from the multiple shape polygons
-                    for polygon in r.geometry:
-                        checked_count += 1
-                        if checked_count % 1000 == 0:
-                            new_time = time.time()
-                            print(f'{checked_count} reference polygons checked in {new_time-start_time:.2f}s')
-                            # if checked_count == 20000:
-                            #     self._add_and_make_ref_reef_poly(coords=(point_coords_x, point_coords_y))
-                        if self._if_within_bounds(polygon.bounds):
-                            # each of the individual coords is a tup of tups
-                            coords = polygon.exterior.coords.xy
-                            if self.config_dict['reference_reef_patch_type'] == 'point':
-                                # Then we want to collect all of the xy points to plot as a scatter
-                                # and plot them as a single scatter at the end
-                                point_coords_x.append(np.array(coords[0]))
-                                point_coords_y.append(np.array(coords[1]))
-                            else:
-                                # we want to plot the polygons as we go
-                                self._make_and_add_ref_reef_patches(coords)
-                            reef_count += 1
-                            if reef_count % 100 == 0:
-                                print(f'{reef_count} reference reefs plotted')
-                                # if checked_count == 20000:
-                                #     self._add_and_make_ref_reef_poly(coords=(point_coords_x, point_coords_y))
+                    checked_count, reef_count = self._handle_multipolygon(
+                        checked_count, point_coords_x, point_coords_y, r, reef_count, start_time
+                    )
                 elif r.geometry.geom_type.lower() == 'polygon':
-                    checked_count += 1
-                    if checked_count % 1000 == 0:
-                        new_time = time.time()
-                        print(f'{checked_count} reference polygons checked in {new_time - start_time:.2f}s')
-                    if self._if_within_bounds(r.bounds):
-                        coords = r.geometry.exterior.coords.xy
-                        if self.config_dict['reference_reef_patch_type'] == 'point':
-                            # Then we want to collect all of the xy points to plot as a scatter
-                            # and plot them as a single scatter at the end
-                            point_coords_x.append(np.array(coords[0]))
-                            point_coords_y.append(np.array(coords[1]))
-                        else:
-                            # we want to plot the polygons as we go
-                            self._make_and_add_ref_reef_patches(coords)
-                        reef_count += 1
-                        if reef_count % 100 == 0:
-                            print(f'{reef_count} reference reefs plotted')
-            except Exception as e:
+                    checked_count, reef_count = self._handle_polygon(
+                        checked_count, point_coords_x, point_coords_y, r, reef_count, start_time
+                    )
+            except Exception:
                 # The common error that occurs is Unexpected Error: unable to find ring point
                 # We've given up trying to catch this is a more elegant way
                 # The class of exception raised is Exception in shapefile.py
                 error_count += 1
                 continue
 
-        if self.config_dict['reference_reef_patch_type'] == 'point':
-            # _add_and_make_ref_reef_poly will only return num_indi_points when self.config_dict['reference_reef_patch_type'] == 'point'
-            num_indi_points = self._make_and_add_ref_reef_patches(coords=(point_coords_x, point_coords_y))
+        num_indi_points = self._plot_coords_as_points(point_coords_x, point_coords_y)
 
+        self._report_on_ref_reef_plotting(error_count, num_indi_points, reef_count)
+
+    def _report_on_ref_reef_plotting(self, error_count, num_indi_points, reef_count):
         print(f'\n{error_count} error producing records were discounted from the reference reefs')
         if self.config_dict['reference_reef_patch_type'] == 'point':
             print(f'{reef_count} reference reefs were added to the plot as {num_indi_points} individual points')
         else:
             print(f'{reef_count} reference reefs were added to the plot')
 
-    def _make_and_add_ref_reef_patches(self, coords, sizes=None):
+    def _plot_coords_as_points(self, point_coords_x, point_coords_y):
+        num_indi_points = None
+        if self.config_dict['reference_reef_patch_type'] == 'point':
+            # _make_and_add_ref_reef_patches will only return num_indi_points
+            # when self.config_dict['reference_reef_patch_type'] == 'point'
+            num_indi_points = self._make_and_add_ref_reef_patches(coords=(point_coords_x, point_coords_y))
+        return num_indi_points
+
+    def _handle_polygon(self, checked_count, point_coords_x, point_coords_y, r, reef_count, start_time):
+        checked_count += 1
+        if checked_count % 1000 == 0:
+            self._report_checked_reef_number(checked_count, start_time)
+        if self._if_within_bounds(r.bounds):
+            coords = r.geometry.exterior.coords.xy
+            self._plot_poly_or_collect_coords(coords, point_coords_x, point_coords_y)
+            reef_count += 1
+            if reef_count % 100 == 0:
+                self._report_reef_number_plotted(reef_count)
+        return checked_count, reef_count
+
+    def _handle_multipolygon(self, checked_count, point_coords_x, point_coords_y, r, reef_count, start_time):
+        # Create multiple matplotlib polygon objects from the multiple shape polygons
+        for polygon in r.geometry:
+            checked_count += 1
+            if checked_count % 1000 == 0:
+                self._report_checked_reef_number(checked_count, start_time)
+            if self._if_within_bounds(polygon.bounds):
+                # each of the individual coords is a tup of tups
+                coords = polygon.exterior.coords.xy
+                self._plot_poly_or_collect_coords(coords, point_coords_x, point_coords_y)
+                reef_count += 1
+                if reef_count % 100 == 0:
+                    self._report_reef_number_plotted(reef_count)
+        return checked_count, reef_count
+
+    def _plot_poly_or_collect_coords(self, coords, point_coords_x, point_coords_y):
+        if self.config_dict['reference_reef_patch_type'] == 'point':
+            # Then we want to collect all of the xy points to plot as a scatter
+            # and plot them as a single scatter at the end
+            point_coords_x.append(np.array(coords[0]))
+            point_coords_y.append(np.array(coords[1]))
+        else:
+            # we want to plot the polygons as we go
+            self._make_and_add_ref_reef_patches(coords)
+
+    def _report_reef_number_plotted(self, reef_count):
+        print(f'{reef_count} reference reefs plotted')
+
+    def _report_checked_reef_number(self, checked_count, start_time):
+        new_time = time.time()
+        print(f'{checked_count} reference polygons checked in {new_time - start_time:.2f}s')
+
+    def _make_and_add_ref_reef_patches(self, coords):
         """
-        When self.config_dict['reference_reef_patch_type'] == 'point' we will plot the reference reefs as cirlces on the map.
+        When self.config_dict['reference_reef_patch_type'] == 'point' we will plot the reference
+        reefs as cirlces on the map using scatter.
         We were originally doing this using Circle patches and then either adding them to the plot
         as individual patches or as part of a PatchCollection. However, this is very slow when
         working with larger numbers of reefs. It is slow to add the patches to the ax, but it is
         also very slow to write out the figure as .png and .svg
-
         It is much faster to use scatter to plot the points. This also leads to a much faster write speed for the
         figure.
         """
         if self.config_dict['reference_reef_patch_type'] == 'point':
-            # For the size of the scatter
-            coords_x = np.concatenate(coords[0])
-            coords_y = np.concatenate(coords[1])
-            if sizes:
-                # Then sizes have been provided and we should use these
-                # This is when we are plotting user specified reefs
-                points_size_array_sqr = [(size*self.coord_to_point_scaler)**2 for size in sizes]
-                self.large_map_ax.scatter(x=coords_x, y=coords_y, s=points_size_array_sqr, zorder=2, facecolors=self.config_dict['reference_reef_color'], edgecolors='none')
-            else:
-                # Then we are plotting the user reefs and we should work with a standard
-                # size. A sensible size is perhaps 1/500th of the shortest size
-                lat = self.config_dict['bounds'][3] - self.config_dict['bounds'][2]
-                lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
-                if lat > lon:
-                    # Then we should work with 1/100 of the lon range
-                    deg_size = lon/500
-                else:
-                    deg_size = lat/500
-                point_size = self.coord_to_point_scaler * deg_size
-                self.large_map_ax.scatter(x=coords_x, y=coords_y, s=point_size**2, zorder=2, facecolors=self.config_dict['reference_reef_color'], edgecolors='none')
+            coords_x = self._plot_ref_scatter(coords)
             return len(coords_x)
         else:
-            reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
-                                closed=True, fill=True, edgecolor=self.config_dict['reference_reef_color'], linewidth=1,
-                                facecolor=self.config_dict['reference_reef_color'],
-                                alpha=1, zorder=2)
-            self.large_map_ax.add_patch(reef_poly)
+            self._make_and_add_poly(coords)
+
+    def _plot_ref_scatter(self, coords):
+        coords_x, coords_y = self._concat_input_coord_arrays(coords)
+        point_size = self._calc_ref_point_size()
+        self.large_map_ax.scatter(x=coords_x, y=coords_y, s=point_size ** 2, zorder=2,
+                                  facecolors=self.config_dict['reference_reef_color'], edgecolors='none')
+        return coords_x
+
+    def _concat_input_coord_arrays(self, coords):
+        coords_x = np.concatenate(coords[0])
+        coords_y = np.concatenate(coords[1])
+        return coords_x, coords_y
+
+    def _calc_ref_point_size(self):
+        # A sensible size is perhaps 1/500th of the shortest size
+        lat = self.config_dict['bounds'][3] - self.config_dict['bounds'][2]
+        lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
+        if lat > lon:
+            deg_size = lon / 500
+        else:
+            deg_size = lat / 500
+        point_size = self.coord_to_point_scaler * deg_size
+        return point_size
+
+    def _make_and_add_poly(self, coords):
+        reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
+                            closed=True, fill=True, edgecolor=self.config_dict['reference_reef_color'], linewidth=1,
+                            facecolor=self.config_dict['reference_reef_color'],
+                            alpha=1, zorder=2)
+        self.large_map_ax.add_patch(reef_poly)
 
     def _if_within_bounds(self, bounds):
         """
@@ -882,7 +920,9 @@ class MapWthInsetFigure:
                     if bounds[3] < self.config_dict['bounds'][3]:
                         return True
         return False
-    def _get_naural_earth_features_big_map(self):
+
+    @staticmethod
+    def _get_naural_earth_features_big_map():
         land_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
                                                         scale='50m')
         ocean_110m = cartopy.feature.NaturalEarthFeature(category='physical', name='ocean',
@@ -891,7 +931,8 @@ class MapWthInsetFigure:
                                                             name='admin_0_boundary_lines_land', scale='110m')
         return land_110m, ocean_110m, boundary_110m
 
-    def _get_naural_earth_features_zoom_map(self):
+    @staticmethod
+    def _get_naural_earth_features_zoom_map():
         land_10m = cartopy.feature.NaturalEarthFeature(category='physical', name='land',
                                                        scale='50m')
         ocean_10m = cartopy.feature.NaturalEarthFeature(category='physical', name='ocean',
@@ -940,22 +981,18 @@ class MapWthInsetFigure:
             g1.left_labels = False
         self.large_map_ax._gridliners.append(g1)
 
-
     # def _annotate_map_with_sites(self):
     #     # TODO tie this in to an input of some sort so that it can be user provided
     #     for site in ['ICN']:
     #         if site != 'PrT':
     #             self.large_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
-    #                                    self.site_marker_dict[site], markerfacecolor=self.site_color_dict[site], markeredgecolor='black', markersize=6, markeredgewidth=0.2)
+    #                                    self.site_marker_dict[site], markerfacecolor=self.site_color_dict[site],
+    #                                    markeredgecolor='black', markersize=6, markeredgewidth=0.2)
     #         else:
     #             self.large_map_ax.plot(self.sites_location_dict[site][0], self.sites_location_dict[site][1],
     #                                    self.site_marker_dict[site], markerfacecolor='black', markeredgecolor='black',
     #                                    markersize=8)
 
 
-
-# If full then the whole Red Sea length will be plotted
-
 mwif = MapWthInsetFigure()
 mwif.draw_map()
-
