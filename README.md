@@ -105,7 +105,7 @@ The output will be a global map with the reef locations plotted using default pa
 
 #### Map configuration
 The map may be further refined using a set of configuration options. These may be provided either via the command
-line arguments or by providing a config-sheet in either .tsv (tab separated format) of .xlsx format.
+line arguments or by providing a config_sheet in either .tsv (tab separated format) of .xlsx format.
 The [config sheet](./config_sheet.tsv) is contained in this repo.
 To use a config_sheet, provide the full path to the sheet to the `--config_sheet` argument.
 
@@ -125,4 +125,17 @@ Sites are plotted as circles with user-defined face and edge colours.
 The size of the circle radius should be given in decimal degrees. Edge weights will be calculated proportional to the
 size of the circle.
 
+#### A note on patch type used for plotting reference reefs
+Reference reefs are defined as polygons in the reference reef shape file.
+However, for relatively zoomed out maps, it may be hard to see some of the polygons.
+To make the reference reefs easier to see, reefMapMaker will automatically plot reference reefs as a set of
+points (one for every coordinate point that makes up the polygon in the shape file) when either the latitude
+or longitude of the map being plotted is > 4 degrees. Below 4 degrees, the polygons will be plotted as polygons.
+The size of these points is set to 1/500th the shortest side of the map.
 
+The default patch type used to plot the reference reefs can be overwritten using the
+--reference-reef-patch-type argument. It can be set to either 'point' or 'polygon'
+
+e.g.:
+
+```--reference-reef-patch-type point```
