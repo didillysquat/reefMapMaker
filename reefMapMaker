@@ -29,6 +29,9 @@ import time
 from matplotlib.colors import is_color_like
 import re
 import matplotlib as mpl
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 mpl.use('TKAgg')
 
@@ -604,8 +607,19 @@ class MapWthInsetFigure:
 
     def _set_default_param(self, param):
         print(f'No valid value for {param} provided. Using default.')
-        self.config_dict[param] = self.param_defaults_dict[param]
-        self._notify_user_set_config_dict_param(param=param)
+        if param == 'reference_reef_patch_type':
+            # Then we will set the default based on the bounds of the map being plotted.
+            # If the longest side greater then 4 degrees we will use points
+            # else polygon
+            lat = self.config_dict['bounds'][3] - self.config_dict['bounds'][2]
+            lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
+            if max([lat, lon]) > 4:
+                self.config_dict[param] = 'point'
+            else:
+                self.config_dict[param] = 'polygon'
+        else:
+            self.config_dict[param] = self.param_defaults_dict[param]
+            self._notify_user_set_config_dict_param(param=param)
 
     def _param_set(self, param):
         """
@@ -943,7 +957,7 @@ class MapWthInsetFigure:
 
     def _make_and_add_poly(self, coords):
         reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
-                            closed=True, fill=True, edgecolor=self.config_dict['reference_reef_color'], linewidth=1,
+                            closed=True, fill=True, edgecolor=None,
                             facecolor=self.config_dict['reference_reef_color'],
                             alpha=1, zorder=2)
         self.large_map_ax.add_patch(reef_poly)
