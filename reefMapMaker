@@ -517,13 +517,13 @@ class MapWthInsetFigure:
 
     def _check_bounds_valid_values(self):
         try:
-            assert ((self.config_dict['bounds'][0] < 180) and (self.config_dict['bounds'][0] > -180))
-            assert ((self.config_dict['bounds'][1] < 180) and (self.config_dict['bounds'][1] > -180))
+            assert ((self.config_dict['bounds'][0] <= 180) and (self.config_dict['bounds'][0] >= -180))
+            assert ((self.config_dict['bounds'][1] <= 180) and (self.config_dict['bounds'][1] >= -180))
         except AssertionError:
             raise RuntimeError("One of your longitude bounds appears to be an invalid value.")
         try:
-            assert ((self.config_dict['bounds'][2] < 90) and (self.config_dict['bounds'][2] > -90))
-            assert ((self.config_dict['bounds'][3] < 90) and (self.config_dict['bounds'][3] > -90))
+            assert ((self.config_dict['bounds'][2] <= 90) and (self.config_dict['bounds'][2] >= -90))
+            assert ((self.config_dict['bounds'][3] <= 90) and (self.config_dict['bounds'][3] >= -90))
         except AssertionError:
             raise RuntimeError("One of your latitude bounds appears to be an invalid value.")
 
@@ -741,7 +741,8 @@ class MapWthInsetFigure:
         print('Annotations complete\n')
         if self.config_dict['plot_grid_lines']:
             self._put_gridlines_on_large_map_ax()
-        self._add_user_reefs()
+        if self.args.site_sheet:
+            self._add_user_reefs()
         self._add_reference_reefs()
         self._save_figs()
 
