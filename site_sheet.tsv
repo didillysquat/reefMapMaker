@@ -1,4 +1,4 @@
-site_name	latitude_deg_n	longitude_deg_e	radius_in_deg_lat	facecolor	edgecolor
+site_name	latitude_deg_n	longitude_deg_e	radius_in_deg	facecolor	edgecolor
 Al Lith 3	19.8608333	40.22815	0.5	red	black
 Al Lith 2	19.8984667	40.1513333	0.05	red	black
 Al Lith 1	19.9553833	40.1542833	0.05	red	black
