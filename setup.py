@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="reefMapMaker",  # Replace with your own username
+    name="reefmapmaker",  # Replace with your own username
     version="0.0.1",
     author="Benjamin C C Hume",
     author_email="didillysquat@gmail.com",
@@ -26,7 +26,7 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     install_requires=['cartopy', 'pandas', 'matplotlib', 'numpy', 'xlrd', 'scipy'],
-    scripts=['reefMapMaker'],
+    scripts=['reefmapmaker'],
     project_urls={
         'Bug Reports': 'https://github.com/didillysquat/reefMapMaker/issues',
         'Source': 'https://github.com/didillysquat/reefMapMaker',
