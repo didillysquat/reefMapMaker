@@ -1,8 +1,19 @@
 # reefMapMaker
+reefMapMaker produces a map figure (.png and .svg format) of a user specified region
+that is annotated with a reference set of coral reef 
+locations as well as user-specified sites.
+
+## Contents
+* [Introduction](#introduction)
+* [Installation](#installation)
+    1. [Installation of the reefMapMaker code and dependencies](#1-installation-of-the-reefmapmaker-code-and-dependencies)
+    2. [Installation of the reference reef shapefile and meta information](#2-installation-of-the-reference-reef-shapefile-and-meta-information)
+* [Usage](#usage)
+
 ## Introduction
 reefMapMaker produces a map figure (.png and .svg format) of a user specified region
 that is annotated with a reference set of coral reef 
-locations as well as user-specified points of interest.
+locations as well as user-specified sites.
 The locations of the reference reefs are imported from the [Global Distribution of Coral 
 Reefs data set](https://data.unep-wcmc.org/datasets/1).
 
@@ -96,8 +107,22 @@ The output will be a global map with the reef locations plotted using default pa
 The map may be further refined using a set of configuration options. These may be provided either via the command
 line arguments or by providing a config-sheet in either .tsv (tab separated format) of .xlsx format.
 The [config sheet](./config_sheet.tsv) is contained in this repo.
+To use a config_sheet, provide the full path to the sheet to the `--config_sheet` argument.
+
+```--config_sheet <FULL/PATH/TO/SITE_SHEET.tsv>```
 
 To see a full list of the config options that can be supplied either as command line arguments or in the config_sheet,
 run: `reefMapMaker -h`.
+
+#### User-provided site data
+User provided sites may be plotted on the map by providing a site_sheet.
+Pass the site_sheet argument to reeMapMaker:
+
+```--site_sheet <FULL/PATH/TO/SITE_SHEET.tsv>```
+
+A [site_sheet](./site_sheet.tsv) is contained in this repo.
+Sites are plotted as circles with user-defined face and edge colours.
+The size of the circle radius should be given in decimal degrees. Edge weights will be calculated proportional to the
+size of the circle.
 
 
