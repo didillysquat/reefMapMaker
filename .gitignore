@@ -3,3 +3,7 @@ map_out*
 .idea
 reef_gis_input
 stdout.txt
+__pycache__
+conda_build
+conda_packages
+reefMapMaker.egg-info

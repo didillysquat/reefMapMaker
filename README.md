@@ -70,7 +70,7 @@ It is advisable to install reefMapMaker in a new conda environment.
 A new environment called reefMapMaker_env (change this name to whatever you like)
 can be created with reefMapMaker installed using the following single command:
 
-`conda create --name reefMapMaker_env -c didillysquat -c coda-forge reefMapMaker`
+`conda create --name reefMapMaker_env -c didillysquat -c conda-forge reefMapMaker`
 
 You will then need to activate the environment
 
