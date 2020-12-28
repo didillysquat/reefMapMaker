@@ -1,0 +1,16 @@
+field	value
+bounds	"32,45,12,30"
+plot_sea	TRUE
+sea_color	#88b5e0
+plot_reference_reefs	TRUE
+reference_reef_color	#003366
+reference_reef_patch_type	polygon
+plot_land	TRUE
+land_color	white
+plot_grid_lines	TRUE
+grid_line_x_position	"34,38,42"
+grid_line_y_position	"13,17,21,25,29"
+grid_line_x_label_position	bottom
+grid_line_y_label_position	left
+plot_boundaries	TRUE
+user_site_labels	TRUE
