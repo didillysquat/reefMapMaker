@@ -101,7 +101,9 @@ reefMapMaker can be run with no inputs:
 
 `reefMapMaker`
 
-The output will be a global map with the reef locations plotted using default parameters.
+The output will be a global map with the reef locations plotted using default parameters. This map will be output
+as a .png and a .svg. For most applications, the user will want to further manipulate the .svg file
+in their vector graphics software of choice.
 
 #### Map configuration
 The map may be further refined using a set of configuration options. These may be provided either via the command
