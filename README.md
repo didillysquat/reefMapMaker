@@ -67,7 +67,7 @@ See the [docs](https://docs.anaconda.com/anaconda/install/) for installation.
 ##### Create a new environment and install reefMapMaker
 It is advisable to install reefMapMaker in a new conda environment.
 
-A new environment called reefMapMaker_evnv (change this name to whatever you like)
+A new environment called reefMapMaker_env (change this name to whatever you like)
 can be created with reefMapMaker installed using the following single command:
 
 `conda create --name reefMapMaker_env -c didillysquat -c coda-forge reefMapMaker`
@@ -93,7 +93,7 @@ Do not change the names of the downloaded files.
 
 By default, reefMapMaker will look for the reference reef datafiles in your current working
 directory. Alternatively you can supply the path to the directory using the
---ref-reef-dir.
+```--ref-reef-dir``` argument.
 
 ## Usage
 ### Basic usage
@@ -108,7 +108,7 @@ in their vector graphics software of choice.
 #### Map configuration
 The map may be further refined using a set of configuration options. These may be provided either via the command
 line arguments or by providing a config_sheet in either .tsv (tab separated format) of .xlsx format.
-The [config sheet](./config_sheet.tsv) is contained in this repo.
+An example [config sheet](./config_sheet.tsv) is contained in this repo.
 To use a config_sheet, provide the full path to the sheet to the `--config_sheet` argument.
 
 ```--config_sheet <FULL/PATH/TO/SITE_SHEET.tsv>```
@@ -122,7 +122,7 @@ Pass the site_sheet argument to reeMapMaker:
 
 ```--site_sheet <FULL/PATH/TO/SITE_SHEET.tsv>```
 
-A [site_sheet](./site_sheet.tsv) is contained in this repo.
+An example [site_sheet](./site_sheet.tsv) is contained in this repo.
 Sites are plotted as circles with user-defined face and edge colours.
 The size of the circle radius should be given in decimal degrees. Edge weights will be calculated proportional to the
 size of the circle.
