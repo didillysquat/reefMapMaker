@@ -36,7 +36,7 @@ The .svg file can be imported into a vector-based graphics editor of the user's 
 
 An example output:
 
-![example_map_red_sea](./map_out_20201215T110504.svg) 
+![example_map_red_sea](./rs_example_map.svg) 
 
 ## Installation
 
