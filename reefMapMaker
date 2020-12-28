@@ -65,13 +65,14 @@ class MapWthInsetFigure:
         
             You should have received a copy of the GNU General Public License
             along with this program.  If not, see
-            https://github.com/didillysquat/SymPortal_framework/tree/master/LICENSE.txt.
+            https://github.com/didillysquat/reefMapMaker/blob/main/LICENSE.txt.
             
-            The dataset is from https://data.unep-wcmc.org/datasets/1:
+            The Global Distribution of Coral Reefs data set is from https://data.unep-wcmc.org/datasets/1:
             
             This dataset shows the global distribution of coral reefs in tropical and subtropical regions.
             It is the most comprehensive global dataset of warm-water coral reefs to date, acting as a
             foundation baseline map for future, more detailed, work.
+            
             This dataset was compiled from a number of sources by UNEP World Conservation Monitoring Centre
             (UNEP-WCMC) and the WorldFish Centre, in collaboration with WRI (World Resources Institute) and
             TNC (The Nature Conservancy). Data sources include the Millennium Coral Reef Mapping Project
@@ -150,11 +151,11 @@ class MapWthInsetFigure:
         print('Reading in site sheet')
         if self.args.site_sheet.endswith('.tsv'):
             self.site_df = pd.read_csv(self.args.site_sheet, index_col=0, sep='\t').sort_values(
-                'radius_in_deg_lat', axis=0, ascending=False)
+                'radius_in_deg', axis=0, ascending=False)
         elif self.args.site_sheet.endswith('.xlsx'):
             self.site_df = pd.read_excel(
                 self.args.site_sheet, sheet_name='user_site', index_col=0
-            ).sort_values('radius_in_deg_lat', axis=0, ascending=False)
+            ).sort_values('radius_in_deg', axis=0, ascending=False)
         print('Checking user sites...')
         self._check_site_sheet()
         print('User site checks complete.')
@@ -214,9 +215,9 @@ class MapWthInsetFigure:
             )
 
     def _check_site_marker_radius(self, site):
-        if not pd.isnull(self.site_df.at[site, 'radius_in_deg_lat']):
+        if not pd.isnull(self.site_df.at[site, 'radius_in_deg']):
             try:
-                float(self.site_df.at[site, 'radius_in_deg_lat'])
+                float(self.site_df.at[site, 'radius_in_deg'])
             except ValueError:
                 raise RuntimeError(f"Unable to convert marker radius for {site} into decimal number.\n"
                                    f"Please check your site sheet.")
@@ -243,12 +244,12 @@ class MapWthInsetFigure:
             new_lon = self._attempt_lon_fix(lon)
         except Exception:
             # see if they are in proper dms format
-            new_lat, new_lon = self._attempt_convert_from_dms(lat, lon, new_lat, new_lon, site)
+            new_lat, new_lon = self._attempt_convert_from_dms(lat, lon, site)
         print(f"For {site}:\n"
               f"\tlatitude was converted from {lat} --> {new_lat}\n"
               f"\tlongitude was converted from {lon} --> {new_lon}")
 
-    def _attempt_convert_from_dms(self, lat, lon, new_lat, new_lon, site):
+    def _attempt_convert_from_dms(self, lat, lon, site):
         try:
             new_lat = self.dms2dec(lat)
             new_lon = self.dms2dec(lon)
@@ -779,12 +780,12 @@ class MapWthInsetFigure:
 
     def _plot_user_points(self):
         print('plotting user reefs\n')
-        line_widths = ((self.site_df['radius_in_deg_lat'].astype(
+        line_widths = ((self.site_df['radius_in_deg'].astype(
             float) * 2) * self.coord_to_point_scaler) * 0.1
         self.large_map_ax.scatter(
             x=self.site_df['longitude_deg_e'],
             y=self.site_df['latitude_deg_n'],
-            s=(((self.site_df['radius_in_deg_lat'].astype(
+            s=(((self.site_df['radius_in_deg'].astype(
                 float) * 2) * self.coord_to_point_scaler) ** 2),
             facecolors=self.site_df['facecolor'],
             edgecolors=self.site_df['edgecolor'], zorder=3,
@@ -797,8 +798,8 @@ class MapWthInsetFigure:
                 self.large_map_ax.annotate(
                     ind,
                     (
-                        self.site_df.at[ind, 'longitude_deg_e'] + self.site_df.at[ind, 'radius_in_deg_lat'],
-                        self.site_df.at[ind, 'latitude_deg_n'] + self.site_df.at[ind, 'radius_in_deg_lat']
+                        self.site_df.at[ind, 'longitude_deg_e'] + self.site_df.at[ind, 'radius_in_deg'],
+                        self.site_df.at[ind, 'latitude_deg_n'] + self.site_df.at[ind, 'radius_in_deg']
                     )
                 )
 
