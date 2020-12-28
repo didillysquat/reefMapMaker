@@ -61,6 +61,10 @@ can be created with reefMapMaker installed using the following single command:
 
 `conda create --name reefMapMaker_env -c didillysquat -c coda-forge reefMapMaker`
 
+You will then need to activate the environment
+
+`conda activate reefMapMaker_env`
+
 ### 2. Installation of the reference reef shapefile and meta information
 Due to [license/use restrictions](https://www.unep-wcmc.org/policies/general-data-license-excluding-wdpa#data_policy),
 the shapefile that contains the data for the reference
@@ -78,13 +82,22 @@ Do not change the names of the downloaded files.
 
 By default, reefMapMaker will look for the reference reef datafiles in your current working
 directory. Alternatively you can supply the path to the directory using the
---ref-reef-path.
+--ref-reef-dir.
 
 ## Usage
 ### Basic usage
 reefMapMaker can be run with no inputs:
 
-`python3 reefMapMaker`
+`reefMapMaker`
 
-The output will be a global map with the reef locations plotted using default parameters:
+The output will be a global map with the reef locations plotted using default parameters.
+
+#### Map configuration
+The map may be further refined using a set of configuration options. These may be provided either via the command
+line arguments or by providing a config-sheet in either .tsv (tab separated format) of .xlsx format.
+The [config sheet](./config_sheet.tsv) is contained in this repo.
+
+To see a full list of the config options that can be supplied either as command line arguments or in the config_sheet,
+run: `reefMapMaker -h`.
+
 

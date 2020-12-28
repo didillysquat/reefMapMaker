@@ -49,10 +49,25 @@ class MapWthInsetFigure:
                                         |_|                               
 
         """)
-        print("""
-            reefMapMaker uses the Global Distribution of Coral Reefs data set.
+        print("""       
+            reefMapMaker uses the Global Distribution of Coral Reefs data set (https://data.unep-wcmc.org/datasets/1)
+            to plot maps annotated with a reference set of coral reef locations.
             
-            From https://data.unep-wcmc.org/datasets/1:
+            This program is free software: you can redistribute it and/or modify
+            it under the terms of the GNU General Public License as published by
+            the Free Software Foundation, either version 3 of the License, or
+            (at your option) any later version.
+        
+            This program is distributed in the hope that it will be useful,
+            but WITHOUT ANY WARRANTY; without even the implied warranty of
+            MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+            GNU General Public License for more details.
+        
+            You should have received a copy of the GNU General Public License
+            along with this program.  If not, see
+            https://github.com/didillysquat/SymPortal_framework/tree/master/LICENSE.txt.
+            
+            The dataset is from https://data.unep-wcmc.org/datasets/1:
             
             This dataset shows the global distribution of coral reefs in tropical and subtropical regions.
             It is the most comprehensive global dataset of warm-water coral reefs to date, acting as a
@@ -623,7 +638,7 @@ class MapWthInsetFigure:
                  'in the order of westernmost, easternmost, southermost, northernmost\n.'
                  'E.g. For bounds that encapsulate the Red Sea: 32,45,12,30\n'
                  'E.g. For bounds that encapsulate the GBR: 141,155,-25,-10.19\n'
-                 '[-180, 180, -90, 90]',
+                 '[-180,180,-90,90]',
         )
         parser.add_argument(
             '--plot-sea',
@@ -668,12 +683,12 @@ class MapWthInsetFigure:
         )
         parser.add_argument(
             '--lon-grid-line-pos',
-            help='Comma delimited  coordinates for the longitude grid lines in decimal degrees (N/E)\n'
+            help='Comma delimited  coordinates for the longitude grid lines in decimal degrees (E).\n'
                  'By default, grid line positions will be plotted automatically'
         )
         parser.add_argument(
             '--lat-grid-line-pos',
-            help='Comma delimited  coordinates for the latitude grid lines in decimal degrees (N/E)\n'
+            help='Comma delimited  coordinates for the latitude grid lines in decimal degrees (N).\n'
                  'By default, grid line positions will be plotted automatically'
         )
         parser.add_argument(
@@ -731,7 +746,7 @@ class MapWthInsetFigure:
             '--reference-reef-patch-type',
             help='Whether to plot the reference reefs as polygon or circle patches.\n'
                  'This can be helpful for maps that cover a larger area as '
-                 'stroking paths can create some graphical aftefacts. must be "polygon" or "point". [polygon]'
+                 'stroking paths can create some graphical aftefacts. Must be "polygon" or "point". [polygon]'
         )
 
     def draw_map(self):
