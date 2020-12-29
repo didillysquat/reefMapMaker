@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""
+A script that makes use of the reefmapmaker module to produce maps annotated with reference coral reefs
+"""
+from reefmapmaker import reefmapmaker
+
+mwif = reefmapmaker.MapWthInsetFigure()
+mwif.draw_map()

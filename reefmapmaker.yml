@@ -1,4 +1,4 @@
-name: reefMapMaker_env
+name: reefmapmaker_env
 channels:
   - conda-forge
   - defaults

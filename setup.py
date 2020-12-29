@@ -26,7 +26,7 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     install_requires=['cartopy', 'pandas', 'matplotlib', 'numpy', 'xlrd', 'scipy'],
-    scripts=['reefmapmaker'],
+    scripts=['scripts/reefmapmaker'],
     project_urls={
         'Bug Reports': 'https://github.com/didillysquat/reefMapMaker/issues',
         'Source': 'https://github.com/didillysquat/reefMapMaker',

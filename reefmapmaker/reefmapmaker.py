@@ -1032,7 +1032,3 @@ class MapWthInsetFigure:
         else:
             g1.left_labels = False
         self.large_map_ax._gridliners.append(g1)
-
-if __name__ == "__main__":
-    mwif = MapWthInsetFigure()
-    mwif.draw_map()

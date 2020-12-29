@@ -48,7 +48,7 @@ Installation of reefMapMaker can be considered in two parts
 This is easiest done using [conda](https://docs.conda.io/projects/conda/en/latest/).
 
 #### For those familiar with conda:
-`conda install -c didillysquat -c conda-forge reefMapMaker`
+`conda install -c didillysquat -c conda-forge reefmapmaker`
 
 #### For those unfamiliar with conda
 ##### Install conda
@@ -67,14 +67,14 @@ See the [docs](https://docs.anaconda.com/anaconda/install/) for installation.
 ##### Create a new environment and install reefMapMaker
 It is advisable to install reefMapMaker in a new conda environment.
 
-A new environment called reefMapMaker_env (change this name to whatever you like)
+A new environment called reefmapmaker_env (change this name to whatever you like)
 can be created with reefMapMaker installed using the following single command:
 
-`conda create --name reefMapMaker_env -c didillysquat -c conda-forge reefMapMaker`
+`conda create --name reefmapmaker_env -c didillysquat -c conda-forge reefmapmaker`
 
 You will then need to activate the environment
 
-`conda activate reefMapMaker_env`
+`conda activate reefmapmaker_env`
 
 ### 2. Installation of the reference reef shapefile and meta information
 Due to [license/use restrictions](https://www.unep-wcmc.org/policies/general-data-license-excluding-wdpa#data_policy),
@@ -99,7 +99,7 @@ directory. Alternatively you can supply the path to the directory using the
 ### Basic usage
 reefMapMaker can be run with no inputs:
 
-`reefMapMaker`
+`reefmapmaker`
 
 The output will be a global map with the reef locations plotted using default parameters. This map will be output
 as a .png and a .svg. For most applications, the user will want to further manipulate the .svg file
@@ -114,7 +114,7 @@ To use a config_sheet, provide the full path to the sheet to the `--config_sheet
 ```--config_sheet <FULL/PATH/TO/SITE_SHEET.tsv>```
 
 To see a full list of the config options that can be supplied either as command line arguments or in the config_sheet,
-run: `reefMapMaker -h`.
+run: `reefmapmaker -h`.
 
 #### User-provided site data
 User provided sites may be plotted on the map by providing a site_sheet.
