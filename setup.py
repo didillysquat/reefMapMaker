@@ -4,14 +4,12 @@ try:
 except ImportError:
     cmdclass = {}
 import setuptools
-from reefmapmaker import reefmapmaker
-version = reefmapmaker.__version__
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="reefmapmaker",  # Replace with your own username
-    version=version,
+    version='0.1.0',
     author="Benjamin C C Hume",
     author_email="didillysquat@gmail.com",
     description="Script to plot maps with reference coral reefs annotated.",
