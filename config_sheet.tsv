@@ -4,11 +4,11 @@ plot_sea	TRUE
 sea_color	#88b5e0
 plot_reference_reefs	TRUE
 reference_reef_color	#003366
-reference_reef_edge_width	None
+reference_reef_edge_width   None
 reference_reef_edge_color   None
-plot_land	TRUE
+plot_land   TRUE
 land_color	white
-plot_grid_lines	TRUE
+plot_grid_lines TRUE
 grid_line_x_position	"34,38,42"
 grid_line_y_position	"13,17,21,25,29"
 grid_line_x_label_position	bottom

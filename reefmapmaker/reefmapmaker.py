@@ -27,7 +27,7 @@ from cartopy.io import DownloadWarning
 warnings.filterwarnings("ignore", category=DownloadWarning)
 
 
-__version__ = "v0.1.1"
+__version__ = "v0.1.2"
 
 
 class ReefMapMaker:
@@ -118,6 +118,10 @@ class ReefMapMaker:
         # User input
         # We will allow user configurations through both the command line and a config file
         # Prioritise command line input over config sheet input
+        self.config_params = ['bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
+                'reference_reef_color', 'reference_reef_edge_width', 'reference_reef_edge_color',
+                'plot_land', 'land_color', 'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
+                'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries', 'dpi']
         self._set_param_defaults_dict()
         if self.args.config_sheet:
             self._config_setup_with_sheet()
@@ -434,6 +438,7 @@ class ReefMapMaker:
                 'plot_land', 'land_color', 'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
                 'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries', 'dpi'
         """
+        self._proper_type_param_val()
         self._check_bounds()
         self._check_bool_params()
         self._check_ref_reef_edge_width()
@@ -522,11 +527,7 @@ class ReefMapMaker:
             self._check_valid_bool_param(bool_param)
 
     def _check_valid_bool_param(self, bool_param):
-        if self.config_dict[bool_param] in ['TRUE', 'true', 'True', 'T', 't']:
-            self.config_dict[bool_param] = True
-        elif self.config_dict[bool_param] in ['FALSE', 'false', 'False', 'F', 'f']:
-            self.config_dict[bool_param] = False
-        elif type(self.config_dict[bool_param] == bool):
+        if type(self.config_dict[bool_param] == bool):
             pass
         else:
             raise ValueError(f"{bool_param} must be either TRUE or FALSE.")
@@ -615,6 +616,7 @@ class ReefMapMaker:
         if param == 'reference_reef_edge_color':
             if self.config_dict['plot_reference_reefs']:
                 self.config_dict[param] = self.config_dict['reference_reef_color']
+                self._notify_user_set_config_dict_param(param=param)
             else:
                 # We will never need to use the edge color so don't set.
                 pass
@@ -634,6 +636,28 @@ class ReefMapMaker:
         if getattr(self.args, param):
             cl_param = True
         return cl_param, config_param
+
+    def _proper_type_param_val(self):
+        """
+        User in put will come in the form of a string such as "None"
+        We want to make sure that all of these types of inputs result in a proper python type
+        Convert "none" strings to None and convert True, T, t, TRUE and true to True
+        """
+        for param in self.config_params:
+            if param in self.config_dict:
+                if self.config_dict[param].lower() in ['t', 'true']:
+                    self.config_dict[param] = True
+                elif self.config_dict[param].lower() in ['f', 'false']:
+                    self.config_dict[param] = False
+                elif self.config_dict[param].lower() in ['none']:
+                    self.config_dict[param] = None
+            if getattr(self.args, param):
+                if getattr(self.args, param) in ['t', 'true']:
+                    setattr(self.args, param, True)
+                elif self.config_dict[param].lower() in ['f', 'false']:
+                    setattr(self.args, param, False)
+                elif self.config_dict[param].lower() in ['none']:
+                    setattr(self.args, param, None)
 
     def _notify_user_set_config_dict_param(self, param):
         print(f'{param} set to: {self.config_dict[param]}')
