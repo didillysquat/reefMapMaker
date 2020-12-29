@@ -1,22 +1,11 @@
 #!/usr/bin/env python3
-"""
-This is a script for creating maps with reef locations
-It is a modification from the CBASS84 script I used to make the figure for that paper
-We will aim for it to take command inputs of the map bounding latitudes and longitudes
-By default we will plot the world reefs on the map
-We will also want to be able to add additional reefs to the map through some sort of csv import
-
-# Finish documentation
-# produce examples
-"""
 
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
 # NB the pip cartopy install seems to be broken as it doesn't install the required libararies.
-# The solution was to install using conda. conda install cartopy.
-# I then had to downgrade shapely to 1.5.17. pip install shapely==1.5.17
+# The solution was to install using conda.
 from cartopy.mpl.gridliner import Gridliner
 import matplotlib.ticker as mticker
 import cartopy.crs as ccrs
@@ -35,10 +24,10 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 mpl.use('TKAgg')
 
-__version__ = "v0.0.2"
+__version__ = "v0.1.0"
 
 
-class MapWthInsetFigure:
+class ReefMapMaker:
     def __init__(self):
         print(f"""
         
@@ -113,8 +102,7 @@ class MapWthInsetFigure:
 
         # User input
         # We will allow user configurations through both the command line and a config file
-        # We should prioritise command line input
-        # Probably the clearest and most logical way to do this will be to go parameter by parameter
+        # Prioritise command line input over config sheet input
         self._set_param_defaults_dict()
         if self.args.config_sheet:
             self._config_setup_with_sheet()
@@ -165,7 +153,7 @@ class MapWthInsetFigure:
 
     def _config_setup_without_sheet(self):
         # no config sheet provided
-        # Use default dict
+        # Use defaults dict
         self.config_dict = {}
         self._setup_config()
 
@@ -390,7 +378,7 @@ class MapWthInsetFigure:
 
     def _search_for_ref_reef_parent_data_dir(self, dir_to_search):
         """
-        Try to find the directory that holds the subdirectories that lead to the refernce reef shape file.
+        Try to find the directory that holds the subdirectories that lead to the reference reef shape file.
         """
         candidate_dirs = []
         data_set_parent_dir = None
@@ -429,7 +417,7 @@ class MapWthInsetFigure:
         'bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
                 'reference_reef_color', 'reference_reef_edge_width', 'reference_reef_edge_color',
                 'plot_land', 'land_color', 'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
-                'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries'
+                'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries', 'dpi'
         """
         self._check_bounds()
         self._check_bool_params()
@@ -504,7 +492,6 @@ class MapWthInsetFigure:
         Check the config and user site color parameters provided
         and set the config dict to the default value if necessary.
         """
-        # Map config colour params
         for c_param in ['sea_color', 'land_color', 'reference_reef_color', 'reference_reef_edge_color']:
             cl_param_set, config_param_set = self._param_set(param=c_param)
             self._set_config_param(param=c_param, cl_param=cl_param_set, config_param=config_param_set)

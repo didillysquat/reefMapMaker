@@ -4,5 +4,5 @@ A script that makes use of the reefmapmaker module to produce maps annotated wit
 """
 from reefmapmaker import reefmapmaker
 
-mwif = reefmapmaker.MapWthInsetFigure()
+mwif = reefmapmaker.ReefMapMaker()
 mwif.draw_map()
