@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="reefmapmaker",  # Replace with your own username
-    version='0.1.0',
+    version='0.1.1',
     author="Benjamin C C Hume",
     author_email="didillysquat@gmail.com",
     description="Script to plot maps with reference coral reefs annotated.",
@@ -23,6 +23,7 @@ setuptools.setup(
         "Operating System :: MacOS",
         "Operating System :: POSIX :: Linux"
     ],
+    license='GPL-3.0-only',
     python_requires='>=3.6',
     install_requires=['cartopy', 'pandas', 'matplotlib', 'numpy', 'xlrd', 'scipy'],
     scripts=['scripts/reefmapmaker'],
