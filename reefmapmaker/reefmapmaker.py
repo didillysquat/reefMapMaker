@@ -35,7 +35,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 mpl.use('TKAgg')
 
-__version__ = "v0.1.0"
+__version__ = "v0.0.2"
 
 
 class MapWthInsetFigure:
@@ -193,7 +193,7 @@ class MapWthInsetFigure:
             'plot_grid_lines': True, 'lon_grid_line_pos': None,
             'lat_grid_line_pos': None, 'lon_grid_lab_pos': 'bottom',
             'lat_grid_lab_pos': 'left', 'plot_boundaries': True,
-            'reference_reef_patch_type': 'polygon', 'user_site_labels': True
+            'reference_reef_edge_width': None, 'user_site_labels': True, 'dpi': 1200
         }
 
     def _check_site_sheet(self):
@@ -427,27 +427,30 @@ class MapWthInsetFigure:
 
         Config params are:
         'bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
-                'reference_reef_color', 'reference_reef_patch_type', 'plot_land', 'land_color',
-                'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
+                'reference_reef_color', 'reference_reef_edge_width', 'reference_reef_edge_color',
+                'plot_land', 'land_color', 'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
                 'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries'
         """
         self._check_bounds()
         self._check_bool_params()
+        self._check_ref_reef_edge_width()
         self._check_color_params()
         self._check_grid_lab_pos()
         self._check_grid_line_coords()
-        self._check_ref_reef_patch_type()
+        self._check_dpi()
 
-    def _check_ref_reef_patch_type(self):
+    def _check_dpi(self):
+        cl_param_set, config_param_set = self._param_set(param='dpi')
+        self._set_config_param(param='dpi', cl_param=cl_param_set,
+                               config_param=config_param_set)
+    def _check_ref_reef_edge_width(self):
         """
-        Check user provided valid value for reference_reef_patch_type or set default
+        Check user provided valid value for reference_reef_edge_width or set default
         """
         if self.config_dict['plot_reference_reefs']:
-            cl_param_set, config_param_set = self._param_set(param='reference_reef_patch_type')
-            self._set_config_param(param='reference_reef_patch_type', cl_param=cl_param_set,
+            cl_param_set, config_param_set = self._param_set(param='reference_reef_edge_width')
+            self._set_config_param(param='reference_reef_edge_width', cl_param=cl_param_set,
                                    config_param=config_param_set)
-            if not self.config_dict['reference_reef_patch_type'] in ['polygon', 'point']:
-                self._set_default_param(param='reference_reef_patch_type')
 
     def _check_grid_line_coords(self):
         for g_line_cords_param in ['lon_grid_line_pos', 'lat_grid_line_pos']:
@@ -502,7 +505,7 @@ class MapWthInsetFigure:
         and set the config dict to the default value if necessary.
         """
         # Map config colour params
-        for c_param in ['sea_color', 'land_color', 'reference_reef_color']:
+        for c_param in ['sea_color', 'land_color', 'reference_reef_color', 'reference_reef_edge_color']:
             cl_param_set, config_param_set = self._param_set(param=c_param)
             self._set_config_param(param=c_param, cl_param=cl_param_set, config_param=config_param_set)
             if not is_color_like(self.config_dict[c_param]):
@@ -607,16 +610,12 @@ class MapWthInsetFigure:
 
     def _set_default_param(self, param):
         print(f'No valid value for {param} provided. Using default.')
-        if param == 'reference_reef_patch_type':
-            # Then we will set the default based on the bounds of the map being plotted.
-            # If the longest side greater then 4 degrees we will use points
-            # else polygon
-            lat = self.config_dict['bounds'][3] - self.config_dict['bounds'][2]
-            lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
-            if max([lat, lon]) > 4:
-                self.config_dict[param] = 'point'
+        if param == 'reference_reef_edge_color':
+            if self.config_dict['plot_reference_reefs']:
+                self.config_dict[param] = self.config_dict['reference_reef_color']
             else:
-                self.config_dict[param] = 'polygon'
+                # We will never need to use the edge color so don't set.
+                pass
         else:
             self.config_dict[param] = self.param_defaults_dict[param]
             self._notify_user_set_config_dict_param(param=param)
@@ -680,6 +679,22 @@ class MapWthInsetFigure:
             required=False
         )
         parser.add_argument(
+            '--reference-reef-edge-width',
+            help='The thickness of the line width for the reference reef polygons in points.\n'
+                 'By default this is set to None and the reefs are plotted as only filled polygons with no stroke.\n'
+                 'However, for zoomed out maps, it may be necessary to stroke the reef polygons with a thicker line '
+                 'in order to be able to see the reefs.'
+                 '[None]',
+            required=False
+        )
+        parser.add_argument(
+            '--reference-reef-edge-color',
+            help='The color of the reference reef edge lines.\n'
+                 'Only applies if the "reference-reef-edge-width" is not None.\n'
+                 '[<same as reef color>]',
+            required=False
+        )
+        parser.add_argument(
             '--plot-land',
             help='Whether to plot land on the map. TRUE|FALSE. [TRUE]',
             required=False
@@ -726,6 +741,11 @@ class MapWthInsetFigure:
             help='Whether to annotate the user sites with labels. TRUE|FALSE. [TRUE]',
             required=False
         )
+        parser.add_argument(
+            '--dpi',
+            help='The dpi for the output .png figure. [1200]',
+            required=False
+        )
 
     @staticmethod
     def _define_runtime_args(parser):
@@ -757,12 +777,6 @@ class MapWthInsetFigure:
                  'Default is current working directory. The dataset can be downloaded from: '
                  'https://data.unep-wcmc.org/datasets/1'
         )
-        parser.add_argument(
-            '--reference-reef-patch-type',
-            help='Whether to plot the reference reefs as polygon or circle patches.\n'
-                 'This can be helpful for maps that cover a larger area as '
-                 'stroking paths can create some graphical aftefacts. Must be "polygon" or "point". [polygon]'
-        )
 
     def draw_map(self):
         land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
@@ -778,9 +792,9 @@ class MapWthInsetFigure:
 
     def _save_figs(self):
         print(f'saving to {self.fig_out_path_png}')
-        plt.savefig(self.fig_out_path_png, dpi=600)
+        plt.savefig(self.fig_out_path_png, dpi=int(self.config_dict['dpi']))
         print(f'saving to {self.fig_out_path_svg}')
-        plt.savefig(self.fig_out_path_svg, dpi=600)
+        plt.savefig(self.fig_out_path_svg)
 
     def _add_user_reefs(self):
         """
@@ -832,18 +846,16 @@ class MapWthInsetFigure:
         error_count = 0
         reef_count = 0
         checked_count = 0
-        point_coords_x = []
-        point_coords_y = []
         start_time = time.time()
         for r in reader.records():  # reader.records() produces a generator
             try:
                 if r.geometry.geom_type.lower() == 'multipolygon':
                     checked_count, reef_count = self._handle_multipolygon(
-                        checked_count, point_coords_x, point_coords_y, r, reef_count, start_time
+                        checked_count, r, reef_count, start_time
                     )
                 elif r.geometry.geom_type.lower() == 'polygon':
                     checked_count, reef_count = self._handle_polygon(
-                        checked_count, point_coords_x, point_coords_y, r, reef_count, start_time
+                        checked_count, r, reef_count, start_time
                     )
             except Exception:
                 # The common error that occurs is Unexpected Error: unable to find ring point
@@ -852,38 +864,26 @@ class MapWthInsetFigure:
                 error_count += 1
                 continue
 
-        num_indi_points = self._plot_coords_as_points(point_coords_x, point_coords_y)
+        self._report_on_ref_reef_plotting(error_count, reef_count)
 
-        self._report_on_ref_reef_plotting(error_count, num_indi_points, reef_count)
-
-    def _report_on_ref_reef_plotting(self, error_count, num_indi_points, reef_count):
+    @staticmethod
+    def _report_on_ref_reef_plotting(error_count, reef_count):
         print(f'\n{error_count} error producing records were discounted from the reference reefs')
-        if self.config_dict['reference_reef_patch_type'] == 'point':
-            print(f'{reef_count} reference reefs were added to the plot as {num_indi_points} individual points')
-        else:
-            print(f'{reef_count} reference reefs were added to the plot')
+        print(f'{reef_count} reference reefs were added to the plot')
 
-    def _plot_coords_as_points(self, point_coords_x, point_coords_y):
-        num_indi_points = None
-        if self.config_dict['reference_reef_patch_type'] == 'point':
-            # _make_and_add_ref_reef_patches will only return num_indi_points
-            # when self.config_dict['reference_reef_patch_type'] == 'point'
-            num_indi_points = self._make_and_add_ref_reef_patches(coords=(point_coords_x, point_coords_y))
-        return num_indi_points
-
-    def _handle_polygon(self, checked_count, point_coords_x, point_coords_y, r, reef_count, start_time):
+    def _handle_polygon(self, checked_count, r, reef_count, start_time):
         checked_count += 1
         if checked_count % 1000 == 0:
             self._report_checked_reef_number(checked_count, start_time)
         if self._if_within_bounds(r.bounds):
             coords = r.geometry.exterior.coords.xy
-            self._plot_poly_or_collect_coords(coords, point_coords_x, point_coords_y)
+            self._make_and_add_poly(coords)
             reef_count += 1
             if reef_count % 100 == 0:
                 self._report_reef_number_plotted(reef_count)
         return checked_count, reef_count
 
-    def _handle_multipolygon(self, checked_count, point_coords_x, point_coords_y, r, reef_count, start_time):
+    def _handle_multipolygon(self, checked_count, r, reef_count, start_time):
         # Create multiple matplotlib polygon objects from the multiple shape polygons
         for polygon in r.geometry:
             checked_count += 1
@@ -892,21 +892,11 @@ class MapWthInsetFigure:
             if self._if_within_bounds(polygon.bounds):
                 # each of the individual coords is a tup of tups
                 coords = polygon.exterior.coords.xy
-                self._plot_poly_or_collect_coords(coords, point_coords_x, point_coords_y)
+                self._make_and_add_poly(coords)
                 reef_count += 1
                 if reef_count % 100 == 0:
                     self._report_reef_number_plotted(reef_count)
         return checked_count, reef_count
-
-    def _plot_poly_or_collect_coords(self, coords, point_coords_x, point_coords_y):
-        if self.config_dict['reference_reef_patch_type'] == 'point':
-            # Then we want to collect all of the xy points to plot as a scatter
-            # and plot them as a single scatter at the end
-            point_coords_x.append(np.array(coords[0]))
-            point_coords_y.append(np.array(coords[1]))
-        else:
-            # we want to plot the polygons as we go
-            self._make_and_add_ref_reef_patches(coords)
 
     def _report_reef_number_plotted(self, reef_count):
         print(f'{reef_count} reference reefs plotted')
@@ -916,20 +906,6 @@ class MapWthInsetFigure:
         print(f'{checked_count} reference polygons checked in {new_time - start_time:.2f}s')
 
     def _make_and_add_ref_reef_patches(self, coords):
-        """
-        When self.config_dict['reference_reef_patch_type'] == 'point' we will plot the reference
-        reefs as cirlces on the map using scatter.
-        We were originally doing this using Circle patches and then either adding them to the plot
-        as individual patches or as part of a PatchCollection. However, this is very slow when
-        working with larger numbers of reefs. It is slow to add the patches to the ax, but it is
-        also very slow to write out the figure as .png and .svg
-        It is much faster to use scatter to plot the points. This also leads to a much faster write speed for the
-        figure.
-        """
-        if self.config_dict['reference_reef_patch_type'] == 'point':
-            coords_x = self._plot_ref_scatter(coords)
-            return len(coords_x)
-        else:
             self._make_and_add_poly(coords)
 
     def _plot_ref_scatter(self, coords):
@@ -956,10 +932,17 @@ class MapWthInsetFigure:
         return point_size
 
     def _make_and_add_poly(self, coords):
-        reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
-                            closed=True, fill=True, edgecolor=None,
-                            facecolor=self.config_dict['reference_reef_color'],
-                            alpha=1, zorder=2)
+        if self.config_dict['reference_reef_edge_width']:
+            reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
+                                closed=True, fill=True, edgecolor=self.config_dict['reference_reef_edge_color'],
+                                facecolor=self.config_dict['reference_reef_color'],
+                                linewidth=float(self.config_dict['reference_reef_edge_width']),
+                                alpha=1, zorder=2)
+        else:
+            reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
+                                closed=True, fill=True, edgecolor=None,
+                                facecolor=self.config_dict['reference_reef_color'],
+                                alpha=1, zorder=2)
         self.large_map_ax.add_patch(reef_poly)
 
     def _if_within_bounds(self, bounds):

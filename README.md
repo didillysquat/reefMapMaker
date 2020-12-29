@@ -127,17 +127,21 @@ Sites are plotted as circles with user-defined face and edge colours.
 The size of the circle radius should be given in decimal degrees. Edge weights will be calculated proportional to the
 size of the circle.
 
-#### A note on patch type used for plotting reference reefs
+#### A note on the visibility of plotted reefs
 Reference reefs are defined as polygons in the reference reef shape file.
-However, for relatively zoomed out maps, it may be hard to see some of the polygons.
-To make the reference reefs easier to see, reefMapMaker will automatically plot reference reefs as a set of
-points (one for every coordinate point that makes up the polygon in the shape file) when either the latitude
-or longitude of the map being plotted is > 4 degrees. Below 4 degrees, the polygons will be plotted as polygons.
-The size of these points is set to 1/500th the shortest side of the map.
+By default, these polygons are plotted as a filled polygon with no edge line.
+This keeps the plotting of reefs as accurate to the original coordinates as possible.
+However, for relatively zoomed out maps, it may become difficult to see the reefs.
+As such, it may be desirable to stroke a line around the edge of the reef polygons.
+The thickness of this line can be varied to aid in visualising
+the reefs (particularly in zoomed out maps).
+Set the "reference-reef-edge-width" to a value to enable stroking edges.
+The value is given in point units. A sensible start may be 1 point e.g.:
 
-The default patch type used to plot the reference reefs can be overwritten using the
---reference-reef-patch-type argument. It can be set to either 'point' or 'polygon'
+```reefmapmaker --bounds 32,45,12,30 --reference-reef-edge-width 1```
 
-e.g.:
+The larger the value, the thicker the edge of the reefs.
+To set the colour of the edge line use "reference-reef-edge-color":
 
-```--reference-reef-patch-type point```
+```reefmapmaker --bounds 32,45,12,30 --reference-reef-edge-width 1 --reference-reef-edge-color black```
+
