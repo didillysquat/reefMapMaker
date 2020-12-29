@@ -2,6 +2,8 @@
 
 import os
 import pandas as pd
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import argparse
 # NB the pip cartopy install seems to be broken as it doesn't install the required libararies.
@@ -17,14 +19,15 @@ import numpy as np
 import time
 from matplotlib.colors import is_color_like
 import re
-import matplotlib as mpl
+
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
+from cartopy.io import DownloadWarning
+warnings.filterwarnings("ignore", category=DownloadWarning)
 
-mpl.use('TKAgg')
 
-__version__ = "v0.1.0"
+__version__ = "v0.1.1"
 
 
 class ReefMapMaker:
@@ -91,6 +94,18 @@ class ReefMapMaker:
             Spalding MD, Ravilious C, Green EP (2001). World Atlas of Coral Reefs. Berkeley (California, USA): 
             The University of California Press. 436 pp.\n\n\n\n
         """)
+        print(f"""
+
+                                 __ __  __             __  __       _             
+                                / _|  \/  |           |  \/  |     | |            
+                  _ __ ___  ___| |_| \  / | __ _ _ __ | \  / | __ _| | _____ _ __ 
+                 | '__/ _ \/ _ \  _| |\/| |/ _` | '_ \| |\/| |/ _` | |/ / _ \ '__|
+                 | | |  __/  __/ | | |  | | (_| | |_) | |  | | (_| |   <  __/ |   
+                 |_|  \___|\___|_| |_|  |_|\__,_| .__/|_|  |_|\__,_|_|\_\___|_|   
+                                                | | {__version__}                              
+                                                |_|                               
+
+                """)
         parser = argparse.ArgumentParser(
             description='A script to make maps with annotated coral reef locations',
             epilog='For support email: didillysquat@gmail.com')
