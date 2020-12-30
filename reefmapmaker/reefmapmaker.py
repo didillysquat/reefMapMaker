@@ -652,11 +652,11 @@ class ReefMapMaker:
                 elif self.config_dict[param].lower() in ['none']:
                     self.config_dict[param] = None
             if getattr(self.args, param):
-                if getattr(self.args, param) in ['t', 'true']:
+                if getattr(self.args, param).lower() in ['t', 'true']:
                     setattr(self.args, param, True)
-                elif self.config_dict[param].lower() in ['f', 'false']:
+                elif getattr(self.args, param).lower() in ['f', 'false']:
                     setattr(self.args, param, False)
-                elif self.config_dict[param].lower() in ['none']:
+                elif getattr(self.args, param).lower() in ['none']:
                     setattr(self.args, param, None)
 
     def _notify_user_set_config_dict_param(self, param):
