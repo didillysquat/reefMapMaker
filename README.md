@@ -50,7 +50,7 @@ This is easiest done using [conda](https://docs.conda.io/projects/conda/en/lates
 #### For those familiar with conda:
 `conda install -c didillysquat -c conda-forge reefmapmaker`
 
-#### For those unfamiliar with conda
+#### For those unfamiliar with conda:
 ##### Install conda
 conda is a package and environment manager program.
 
@@ -95,6 +95,9 @@ By default, reefMapMaker will look for the reference reef datafiles in your curr
 directory. Alternatively you can supply the path to the directory using the
 ```--ref-reef-dir``` argument.
 
+N.B. make sure to place the shape directory somewhere the script will be able to access it.
+E.g. if running on MacOS, do not place the directory in a /Applications or a similar directory or subdirectory.
+
 ## Usage
 ### Basic usage
 reefMapMaker can be run with no inputs:
@@ -104,6 +107,14 @@ reefMapMaker can be run with no inputs:
 The output will be a global map with the reef locations plotted using default parameters. This map will be output
 as a .png and a .svg. For most applications, the user will want to further manipulate the .svg file
 in their vector graphics software of choice.
+
+reefmapmker will write the config parameters and values being used to stdout.
+You will see counts of the number of reefs checked, and the number of reefs added to your plot.
+It is normal for some of the checked reefs to produce errors.
+A count of these will be output towards the end of the script.
+
+N.b. when running reefmapmaker for the first time, it could take a little longer to start due
+to one of the graphics packages it relies on having to generate caches.
 
 #### Map configuration
 The map may be further refined using a set of configuration options. These may be provided either via the command
@@ -127,7 +138,11 @@ Sites are plotted as circles with user-defined face and edge colours.
 The size of the circle radius should be given in decimal degrees. Edge weights will be calculated proportional to the
 size of the circle.
 
-#### A note on the visibility of plotted reefs
+#### Figure ouput
+You can specifiy the directory to which you want the .png and .svg file saved using the 
+`--fig-out-dir` flag.
+
+### A note on the visibility of plotted reefs
 Reference reefs are defined as polygons in the reference reef shape file.
 By default, these polygons are plotted as a filled polygon with no edge line.
 This keeps the plotting of reefs as accurate to the original coordinates as possible.
@@ -145,3 +160,7 @@ To set the colour of the edge line use "reference-reef-edge-color":
 
 ```reefmapmaker --bounds 32,45,12,30 --reference-reef-edge-width 1 --reference-reef-edge-color black```
 
+### Updating reefmapmaker
+As new versions of reefmapmaker are released you may wish to upgrade the version you have installed.
+With your conda environment activated, you can run:
+```conda update reefmapmaker -c didillysquat -c conda-forge```

@@ -27,7 +27,7 @@ from cartopy.io import DownloadWarning
 warnings.filterwarnings("ignore", category=DownloadWarning)
 
 
-__version__ = "v0.1.3"
+__version__ = "v0.1.4"
 
 
 class ReefMapMaker:
@@ -799,7 +799,8 @@ class ReefMapMaker:
         )
         parser.add_argument(
             '--ref-reef-dir',
-            help='The full path to the directory containing the reference reef shapefile data.'
+            help='The full path to the base directory containing the reference reef shapefile data.'
+                 'For version 4 of the data, this directory is called 14_001_WCMC008_CoralReefs2018_v4.'
                  'Default is current working directory. The dataset can be downloaded from: '
                  'https://data.unep-wcmc.org/datasets/1'
         )
