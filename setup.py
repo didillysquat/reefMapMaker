@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="reefmapmaker",  # Replace with your own username
-    version='0.1.2',
+    version='0.1.3',
     author="Benjamin C C Hume",
     author_email="didillysquat@gmail.com",
     description="Script to plot maps with reference coral reefs annotated.",
