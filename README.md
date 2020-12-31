@@ -15,7 +15,7 @@ reefMapMaker produces a map figure (.png and .svg format) of a user specified re
 that is annotated with a reference set of coral reef 
 locations as well as user-specified sites.
 The locations of the reference reefs are imported from the [Global Distribution of Coral 
-Reefs data set](https://data.unep-wcmc.org/datasets/1).
+Reefs dataset](https://data.unep-wcmc.org/datasets/1).
 
 This dataset is compiled from a number of sources by UNEP World Conservation Monitoring Centre
 (UNEP-WCMC) and the WorldFish Centre, in collaboration with WRI (World Resources Institute) and
@@ -30,7 +30,7 @@ detail the locations of user-specified points of interest. Making such maps is o
 using R- or Python-based packages/scripts. However, doing so can often be time consuming and require
 considerable experience/familiarity with the mapping libraries in question.
  
-reefMapmaker is designed to enable users with 0 experience in scripting languages to produce publication-ready
+reefMapmaker is designed to enable users with no prior experience in scripting languages to produce publication-ready
 maps of reef/site locations such as the one shown below. The output of reefMapMaker is a set of .png and .svg files.
 The .svg file can be imported into a vector-based graphics editor of the user's choice for further manipulation.
 
