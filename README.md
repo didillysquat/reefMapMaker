@@ -1,4 +1,6 @@
 # reefMapMaker
+![title.png](./title.png)
+
 reefMapMaker produces a map figure (.png and .svg format) of a user specified region
 that is annotated with a reference set of coral reef 
 locations as well as user-specified sites.
