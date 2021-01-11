@@ -27,7 +27,7 @@ from cartopy.io import DownloadWarning
 warnings.filterwarnings("ignore", category=DownloadWarning)
 
 
-__version__ = "v0.1.5"
+__version__ = "v0.1.6"
 
 
 class ReefMapMaker:
@@ -124,7 +124,8 @@ class ReefMapMaker:
         self.config_params = ['bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
                 'reference_reef_color', 'reference_reef_edge_width', 'reference_reef_edge_color',
                 'plot_land', 'land_color', 'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
-                'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries', 'dpi']
+                'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries', 'dpi', 'plot_type',
+                              'reference_reef_point_size']
         self._set_param_defaults_dict()
         # Lat and lon are both set once the bounds are set in config_setup
         self.lat = None
