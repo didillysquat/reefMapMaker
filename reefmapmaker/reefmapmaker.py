@@ -27,7 +27,7 @@ from cartopy.io import DownloadWarning
 warnings.filterwarnings("ignore", category=DownloadWarning)
 
 
-__version__ = "v0.1.4"
+__version__ = "v0.1.5"
 
 
 class ReefMapMaker:
@@ -114,7 +114,10 @@ class ReefMapMaker:
         self.args = parser.parse_args()
         self.root_dir = os.getcwd()
         self.date_time = str(datetime.now()).split('.')[0].replace('-', '').replace(' ', 'T').replace(':', '')
-
+        if self.args.sub_sample:
+            self.sub_sample = int(self.args.sub_sample)
+        else:
+            self.sub_sample = 1
         # User input
         # We will allow user configurations through both the command line and a config file
         # Prioritise command line input over config sheet input
@@ -123,6 +126,9 @@ class ReefMapMaker:
                 'plot_land', 'land_color', 'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
                 'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries', 'dpi']
         self._set_param_defaults_dict()
+        # Lat and lon are both set once the bounds are set in config_setup
+        self.lat = None
+        self.lon = None
         if self.args.config_sheet:
             self._config_setup_with_sheet()
         else:
@@ -140,11 +146,13 @@ class ReefMapMaker:
         self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(), zorder=1)
         self.large_map_ax.set_extent(extents=(
             self.config_dict['bounds'][0], self.config_dict['bounds'][1], self.config_dict['bounds'][2],
-            self.config_dict['bounds'][3]))
+            self.config_dict['bounds'][3]), crs=ccrs.PlateCarree())
         # Scalar for converting the user inputted coordinate radii to point format for plotting
         self.coord_to_point_scaler = self._calc_scaler()
 
         self._setup_fig_output_paths()
+        self.plot_points = True
+        self.points = [[],[]]
 
     def _setup_fig_output_paths(self):
         if not self.args.fig_out_dir:
@@ -200,7 +208,8 @@ class ReefMapMaker:
             'plot_grid_lines': True, 'lon_grid_line_pos': None,
             'lat_grid_line_pos': None, 'lon_grid_lab_pos': 'bottom',
             'lat_grid_lab_pos': 'left', 'plot_boundaries': True,
-            'reference_reef_edge_width': None, 'user_site_labels': True, 'dpi': 1200
+            'reference_reef_edge_width': None, 'reference_reef_point_size': None,
+            'user_site_labels': True, 'dpi': 1200
         }
 
     def _check_site_sheet(self):
@@ -363,13 +372,12 @@ class ReefMapMaker:
         Set fig size ratios according to lat lon ratios
         """
         big_fig_size = 10
-        lat = self.config_dict['bounds'][3] - self.config_dict['bounds'][2]
-        lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
+
         # figsize is w x h
-        if lat > lon:
-            fig = plt.figure(figsize=((lon / lat) * big_fig_size, big_fig_size))
+        if self.lat > self.lon:
+            fig = plt.figure(figsize=((self.lon / self.lat) * big_fig_size, big_fig_size))
         else:
-            fig = plt.figure(figsize=(big_fig_size, (lat / lon) * big_fig_size))
+            fig = plt.figure(figsize=(big_fig_size, (self.lat / self.lon) * big_fig_size))
         return fig
 
     def _find_shape_path(self):
@@ -436,21 +444,45 @@ class ReefMapMaker:
         'bounds', 'plot_sea', 'sea_color', 'plot_reference_reefs',
                 'reference_reef_color', 'reference_reef_edge_width', 'reference_reef_edge_color',
                 'plot_land', 'land_color', 'plot_grid_lines', 'lon_grid_line_pos', 'lat_grid_line_pos',
-                'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries', 'dpi'
+                'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries', 'dpi', plot_type
         """
         self._proper_type_param_val()
         self._check_bounds()
+        self.lat = self.config_dict['bounds'][3] - self.config_dict['bounds'][2]
+        self.lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
         self._check_bool_params()
         self._check_ref_reef_edge_width()
+        self._check_ref_reef_point_size()
         self._check_color_params()
         self._check_grid_lab_pos()
         self._check_grid_line_coords()
         self._check_dpi()
+        if self.lat > 10 or self.lon > 10:
+            self.param_defaults_dict['plot_type'] = 'point'
+        else:
+            self.param_defaults_dict['plot_type'] = 'polygon'
+        self._check_plot_type()
+
+    def _check_plot_type(self):
+        cl_param_set, config_param_set = self._param_set(param='plot_type')
+        self._set_config_param(param='plot_type', cl_param=cl_param_set,
+                               config_param=config_param_set)
 
     def _check_dpi(self):
         cl_param_set, config_param_set = self._param_set(param='dpi')
         self._set_config_param(param='dpi', cl_param=cl_param_set,
                                config_param=config_param_set)
+
+    def _check_ref_reef_point_size(self):
+        """
+        Check user provided valid value for reference_reef_point_size or set default
+        """
+        if self.config_dict['plot_reference_reefs']:
+            cl_param_set, config_param_set = self._param_set(param='reference_reef_point_size')
+            self._set_config_param(param='reference_reef_point_size', cl_param=cl_param_set,
+                                   config_param=config_param_set)
+
+
     def _check_ref_reef_edge_width(self):
         """
         Check user provided valid value for reference_reef_edge_width or set default
@@ -651,6 +683,10 @@ class ReefMapMaker:
                     self.config_dict[param] = False
                 elif self.config_dict[param].lower() in ['none']:
                     self.config_dict[param] = None
+                elif self.config_dict[param].lower() in ['points', 'point']:
+                    self.config_dict[param] = 'point'
+                elif self.config_dict[param].lower() in ['polygons', 'polygon']:
+                    self.config_dict[param] = 'polygon'
             if getattr(self.args, param):
                 if getattr(self.args, param).lower() in ['t', 'true']:
                     setattr(self.args, param, True)
@@ -658,6 +694,10 @@ class ReefMapMaker:
                     setattr(self.args, param, False)
                 elif getattr(self.args, param).lower() in ['none']:
                     setattr(self.args, param, None)
+                elif getattr(self.args, param).lower() in ['points', 'point']:
+                    setattr(self.args, param, 'point')
+                elif getattr(self.args, param).lower() in ['polygons', 'polygon']:
+                    setattr(self.args, param, 'polygon')
 
     def _notify_user_set_config_dict_param(self, param):
         print(f'{param} set to: {self.config_dict[param]}')
@@ -707,10 +747,22 @@ class ReefMapMaker:
         parser.add_argument(
             '--reference-reef-edge-width',
             help='The thickness of the line width for the reference reef polygons in points.\n'
+                 'This will only have an effect when reference reefs are being '
+                 'plotted as polygons rather than points.\n'
                  'By default this is set to None and the reefs are plotted as only filled polygons with no stroke.\n'
                  'However, for zoomed out maps, it may be necessary to stroke the reef polygons with a thicker line '
                  'in order to be able to see the reefs.'
                  '[None]',
+            required=False
+        )
+        parser.add_argument(
+            '--reference-reef-point-size',
+            help='The size of the points used to represent reference reefs when being plotted as points\n'
+                 'Units are given as a fraction of the shortest side of the map.\n'
+                 'This will only have an effect when reference reefs are being plotted as points rather than polygons.'
+                 'E.g. the default is set to 200, which means that the points will be a diameter of '
+                 '1/200 of the shortest side of the map.\n To make points bigger, make this number smaller.'
+                 '[200]',
             required=False
         )
         parser.add_argument(
@@ -804,6 +856,17 @@ class ReefMapMaker:
                  'Default is current working directory. The dataset can be downloaded from: '
                  'https://data.unep-wcmc.org/datasets/1'
         )
+        parser.add_argument('--sub-sample', help="Subsample the reference reef shape file "
+                                                 "keeping 1 in every <sub-sample> reef record. Subsampling will "
+                                                 "drastically speed up the time it takes for the code to run, "
+                                                 "but fewer reefs will be plotted. This is extremely useful for "
+                                                 "experimenting with your configuration parameters."
+                                                 "E.g. If sub-sample = 100 only 1 in every 100 reef records from "
+                                                 "the reference reef shape file will be used. "
+                                                 "Default = no subsampling.")
+        parser.add_argument('--plot-type', help='[point|polygon]. How the reference reefs will be '
+                                                'represented on the plot. Defaults to "point" when '
+                                                'either lat or lon are > 10 degrees. Otherwise, "polygon".')
 
     def draw_map(self):
         land_110m, ocean_110m, boundary_110m = self._get_naural_earth_features_big_map()
@@ -874,23 +937,29 @@ class ReefMapMaker:
         reef_count = 0
         checked_count = 0
         start_time = time.time()
-        for r in reader.records():  # reader.records() produces a generator
-            try:
-                if r.geometry.geom_type.lower() == 'multipolygon':
-                    checked_count, reef_count = self._handle_multipolygon(
-                        checked_count, r, reef_count, start_time
-                    )
-                elif r.geometry.geom_type.lower() == 'polygon':
-                    checked_count, reef_count = self._handle_polygon(
-                        checked_count, r, reef_count, start_time
-                    )
-            except Exception:
-                # The common error that occurs is Unexpected Error: unable to find ring point
-                # We've given up trying to catch this is a more elegant way
-                # The class of exception raised is Exception in shapefile.py
-                error_count += 1
-                continue
 
+        for n, r in enumerate(reader.records()):  # reader.records() produces a generator
+            if n % self.sub_sample == 0:
+                try:
+                    if r.geometry.geom_type.lower() == 'multipolygon':
+                        checked_count, reef_count = self._handle_multipolygon(
+                            checked_count, r, reef_count, start_time
+                        )
+                    elif r.geometry.geom_type.lower() == 'polygon':
+                        checked_count, reef_count = self._handle_polygon(
+                            checked_count, r, reef_count, start_time
+                        )
+                except Exception:
+                    # The common error that occurs is Unexpected Error: unable to find ring point
+                    # We've given up trying to catch this is a more elegant way
+                    # The class of exception raised is Exception in shapefile.py
+                    error_count += 1
+                    continue
+        if self.config_dict['plot_type'] == 'point':
+            self._plot_ref_scatter(coords_x=self.points[0], coords_y=self.points[1])
+        else:
+            # We are plotting polygons and they have already been added to the plot.
+            pass
         self._report_on_ref_reef_plotting(error_count, reef_count)
 
     @staticmethod
@@ -935,9 +1004,11 @@ class ReefMapMaker:
     def _make_and_add_ref_reef_patches(self, coords):
             self._make_and_add_poly(coords)
 
-    def _plot_ref_scatter(self, coords):
-        coords_x, coords_y = self._concat_input_coord_arrays(coords)
+    def _plot_ref_scatter(self, coords_x, coords_y):
+        # coords_x, coords_y = self._concat_input_coord_arrays(coords)
+
         point_size = self._calc_ref_point_size()
+        # point_size = 10
         self.large_map_ax.scatter(x=coords_x, y=coords_y, s=point_size ** 2, zorder=2,
                                   facecolors=self.config_dict['reference_reef_color'], edgecolors='none')
         return coords_x
@@ -949,28 +1020,35 @@ class ReefMapMaker:
 
     def _calc_ref_point_size(self):
         # A sensible size is perhaps 1/500th of the shortest size
-        lat = self.config_dict['bounds'][3] - self.config_dict['bounds'][2]
-        lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
-        if lat > lon:
-            deg_size = lon / 500
+        if self.config_dict['reference_reef_point_size']:
+            div = int(self.config_dict['reference_reef_point_size'])
         else:
-            deg_size = lat / 500
+            div = 200
+        if self.lat > self.lon:
+            deg_size = self.lon / div
+        else:
+            deg_size = self.lat / div
         point_size = self.coord_to_point_scaler * deg_size
         return point_size
 
     def _make_and_add_poly(self, coords):
-        if self.config_dict['reference_reef_edge_width']:
-            reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
-                                closed=True, fill=True, edgecolor=self.config_dict['reference_reef_edge_color'],
-                                facecolor=self.config_dict['reference_reef_color'],
-                                linewidth=float(self.config_dict['reference_reef_edge_width']),
-                                alpha=1, zorder=2)
+        if self.config_dict['plot_type'] == 'point':
+            self.points[0].append(sum(list(coords[0]))/len(list(coords[0])))
+            self.points[1].append(sum(list(coords[1])) / len(list(coords[1])))
         else:
-            reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
-                                closed=True, fill=True, edgecolor=None,
-                                facecolor=self.config_dict['reference_reef_color'],
-                                alpha=1, zorder=2)
-        self.large_map_ax.add_patch(reef_poly)
+            # Plotting polygons
+            if self.config_dict['reference_reef_edge_width']:
+                reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
+                                    closed=True, fill=True, edgecolor=self.config_dict['reference_reef_edge_color'],
+                                    facecolor=self.config_dict['reference_reef_color'],
+                                    linewidth=float(self.config_dict['reference_reef_edge_width']),
+                                    alpha=1, zorder=2)
+            else:
+                reef_poly = Polygon([(x, y) for x, y in zip(list(coords[0]), list(coords[1]))],
+                                    closed=True, fill=True, edgecolor=None,
+                                    facecolor=self.config_dict['reference_reef_color'],
+                                    alpha=1, zorder=2)
+            self.large_map_ax.add_patch(reef_poly)
 
     def _if_within_bounds(self, bounds):
         """
