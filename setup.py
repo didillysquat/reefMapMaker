@@ -8,8 +8,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="reefmapmaker",  # Replace with your own username
-    version='0.1.5',
+    name="reefmapmaker",
+    version='0.1.6',
     author="Benjamin C C Hume",
     author_email="didillysquat@gmail.com",
     description="Script to plot maps with reference coral reefs annotated.",

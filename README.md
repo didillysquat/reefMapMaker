@@ -102,11 +102,12 @@ E.g. if running on MacOS, do not place the directory in a /Applications or a sim
 
 ## Usage
 ### Basic usage
-reefMapMaker can be run with no inputs:
+Once installed reefmapmaker is run by typing:
 
 `reefmapmaker`
 
-The output will be a global map with the reef locations plotted using default parameters. This map will be output
+If run without any parameters
+the output will be a global map with the reef locations plotted using default parameters. This map will be output
 as a .png and a .svg. For most applications, the user will want to further manipulate the .svg file
 in their vector graphics software of choice.
 
@@ -144,23 +145,29 @@ size of the circle.
 You can specifiy the directory to which you want the .png and .svg file saved using the 
 `--fig-out-dir` flag.
 
-### A note on the visibility of plotted reefs
-Reference reefs are defined as polygons in the reference reef shape file.
-By default, these polygons are plotted as a filled polygon with no edge line.
+#### Plotting reference reefs: polygons vs points
+In the UNEP-WCMC shape file, the reference reefs are defined as polygon objects
+(sets of x and y coordinates that make a perimeter of a reef).
+
+For small scale maps (i.e. spanning < ~10 deg. lat. or lon.) it makes sense to plot these polygons directly to the map.
+By default, these polygons are plotted as filled polygons with no edge line.
 This keeps the plotting of reefs as accurate to the original coordinates as possible.
-However, for relatively zoomed out maps, it may become difficult to see the reefs.
-As such, it may be desirable to stroke a line around the edge of the reef polygons.
-The thickness of this line can be varied to aid in visualising
-the reefs (particularly in zoomed out maps).
-Set the "reference-reef-edge-width" to a value to enable stroking edges.
-The value is given in point units. A sensible start may be 1 point e.g.:
+To apply an edge line to the polygons user may use the --reference-reef-edge-width argument
+(a bigger value will increase the edge thickness; units are in points), e.g.:
 
 ```reefmapmaker --bounds 32,45,12,30 --reference-reef-edge-width 1```
 
-The larger the value, the thicker the edge of the reefs.
-To set the colour of the edge line use "reference-reef-edge-color":
+However, for maps that span a large lat. or lon. it will become difficult to see the reefs.
+By default, for maps with a lat. or lon. spanning > 10 deg.,
+reefMapMaker will plot each reference reef record as a single point with
+location calculated as an average of the x and y coordinates.
+The user may adjust the size of the points using the --reference-reef-point-size argument, e.g.:
 
-```reefmapmaker --bounds 32,45,12,30 --reference-reef-edge-width 1 --reference-reef-edge-color black```
+```reefmapmaker --bounds 32,45,12,30 --reference-reef-point-size 100```
+
+The unit specifies the diameter of the points as a fraction of the shortest side of the map.
+E.g. a value of 100 will plot points with a diameter that is 1/100 of the shortest side of the map.
+For larger points make the number smaller.
 
 ### Updating reefmapmaker
 As new versions of reefmapmaker are released you may wish to upgrade the version you have installed.
