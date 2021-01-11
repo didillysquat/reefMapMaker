@@ -130,6 +130,12 @@ To use a config_sheet, provide the full path to the sheet to the `--config_sheet
 To see a full list of the config options that can be supplied either as command line arguments or in the config_sheet,
 run: `reefmapmaker -h`.
 
+**NB** When providing bounds on the command line, if the first coordinate is negative you must use an '=' sign:
+
+```reefmapmaker --bounds=-90,160,-30,30```
+
+If you ommit the '=' sign, python will interpret your negative coordinate as an additional commonline argument.
+
 #### User-provided site data
 User provided sites may be plotted on the map by providing a site_sheet.
 Pass the site_sheet argument to reeMapMaker:
