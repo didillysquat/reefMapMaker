@@ -666,7 +666,7 @@ class ReefMapMaker:
         if param in self.config_dict:
             if not pd.isnull(self.config_dict[param]):
                 config_param = True
-        if getattr(self.args, param):
+        if getattr(self.args, param) is not None:
             cl_param = True
         return cl_param, config_param
 
@@ -688,7 +688,7 @@ class ReefMapMaker:
                     self.config_dict[param] = 'point'
                 elif self.config_dict[param].lower() in ['polygons', 'polygon']:
                     self.config_dict[param] = 'polygon'
-            if getattr(self.args, param):
+            if getattr(self.args, param) is not None:
                 if getattr(self.args, param).lower() in ['t', 'true']:
                     setattr(self.args, param, True)
                 elif getattr(self.args, param).lower() in ['f', 'false']:
