@@ -136,6 +136,10 @@ run: `reefmapmaker -h`.
 
 If you ommit the '=' sign, python will interpret your negative coordinate as an additional commonline argument.
 
+Similarly, when providing colors as hexcodes, you must also use an '=' sign:
+
+```reefmapmaker --bounds=-90,160,-30,30 --sea-color=#D3D3D3```
+
 #### User-provided site data
 User provided sites may be plotted on the map by providing a site_sheet.
 Pass the site_sheet argument to reeMapMaker:
