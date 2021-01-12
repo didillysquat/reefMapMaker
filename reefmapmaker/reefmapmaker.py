@@ -27,7 +27,7 @@ from cartopy.io import DownloadWarning
 warnings.filterwarnings("ignore", category=DownloadWarning)
 
 
-__version__ = "v0.1.6"
+__version__ = "v0.1.7"
 
 
 class ReefMapMaker:
