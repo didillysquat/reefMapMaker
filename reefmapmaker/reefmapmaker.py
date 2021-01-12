@@ -27,7 +27,7 @@ from cartopy.io import DownloadWarning
 warnings.filterwarnings("ignore", category=DownloadWarning)
 
 
-__version__ = "v0.1.7"
+__version__ = "v0.1.8"
 
 
 class ReefMapMaker:
@@ -548,8 +548,9 @@ class ReefMapMaker:
         for c_param in ['sea_color', 'land_color', 'reference_reef_color', 'reference_reef_edge_color']:
             cl_param_set, config_param_set = self._param_set(param=c_param)
             self._set_config_param(param=c_param, cl_param=cl_param_set, config_param=config_param_set)
-            if not is_color_like(self.config_dict[c_param]):
-                self._set_default_param(param=c_param)
+            if c_param in self.config_dict:
+                if not is_color_like(self.config_dict[c_param]):
+                    self._set_default_param(param=c_param)
 
     def _check_bool_params(self):
         for bool_param in [
@@ -878,7 +879,8 @@ class ReefMapMaker:
             self._put_gridlines_on_large_map_ax()
         if self.args.site_sheet:
             self._add_user_reefs()
-        self._add_reference_reefs()
+        if self.config_dict['plot_reference_reefs']:
+            self._add_reference_reefs()
         self._save_figs()
 
     def _save_figs(self):
