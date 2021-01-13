@@ -1,5 +1,31 @@
 # reefMapMaker
-![title.png](./title.png)
+
+```
+
+                                 __ __  __             __  __       _             
+                                / _|  \/  |           |  \/  |     | |            
+                  _ __ ___  ___| |_| \  / | __ _ _ __ | \  / | __ _| | _____ _ __ 
+                 | '__/ _ \/ _ \  _| |\/| |/ _` | '_ \| |\/| |/ _` | |/ / _ \ '__|
+                 | | |  __/  __/ | | |  | | (_| | |_) | |  | | (_| |   <  __/ |   
+                 |_|  \___|\___|_| |_|  |_|\__,_| .__/|_|  |_|\__,_|_|\_\___|_|   
+                                                | | v0.1.8                              
+                                                |_|                               
+
+                
+usage: reefmapmaker [-h] [--config-sheet CONFIG_SHEET] [--site-sheet SITE_SHEET] [--fig-out-dir FIG_OUT_DIR] 
+                    [--ref-reef-dir REF_REEF_DIR] [--sub-sample SUB_SAMPLE] [--plot-type PLOT_TYPE]
+                    [--bounds BOUNDS] [--plot-sea PLOT_SEA] [--sea-color SEA_COLOR] 
+                    [--plot-reference-reefs PLOT_REFERENCE_REEFS] [--reference-reef-color REFERENCE_REEF_COLOR]
+                    [--reference-reef-edge-width REFERENCE_REEF_EDGE_WIDTH] 
+                    [--reference-reef-point-size REFERENCE_REEF_POINT_SIZE] 
+                    [--reference-reef-edge-color REFERENCE_REEF_EDGE_COLOR]
+                    [--plot-land PLOT_LAND] [--land-color LAND_COLOR] [--plot-grid-lines PLOT_GRID_LINES] 
+                    [--lon-grid-line-pos LON_GRID_LINE_POS] [--lat-grid-line-pos LAT_GRID_LINE_POS]
+                    [--lon-grid-lab-pos LON_GRID_LAB_POS] [--lat-grid-lab-pos LAT_GRID_LAB_POS] 
+                    [--plot-boundaries PLOT_BOUNDARIES] [--user-site-labels USER_SITE_LABELS] [--dpi DPI]
+                    
+                    A script to make maps with annotated coral reef locations
+```
 
 reefMapMaker produces a map figure (.png and .svg format) of a user specified region
 that is annotated with a reference set of coral reef 
