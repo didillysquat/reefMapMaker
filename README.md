@@ -44,6 +44,7 @@ locations as well as user-specified sites.
 reefMapMaker produces a map figure (.png and .svg format) of a user specified region
 that is annotated with a reference set of coral reef 
 locations as well as user-specified sites.
+
 The locations of the reference reefs are imported from the [Global Distribution of Coral 
 Reefs dataset](https://data.unep-wcmc.org/datasets/1).
 
@@ -54,6 +55,8 @@ TNC (The Nature Conservancy).
 reefMapMaker is written in Python and leverages 
 the [cartopy](https://scitools.org.uk/cartopy/docs/latest/) and 
 [matplotlib](https://matplotlib.org/) libraries to produce its maps.
+
+reefMapMaker makes use of Coastline, Land and Ocean features from [Natural Earth](https://www.naturalearthdata.com/features/).
 
 reefMapMaker is designed to simplify the task of producing publication-ready map figures that
 detail the locations of user-specified points of interest. Making such maps is often undertaken
