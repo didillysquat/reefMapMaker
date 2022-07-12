@@ -963,23 +963,19 @@ class ReefMapMaker:
         for each of the coordinate points that make up a reef polygon.
         """
         print('Annotating reference reefs\n')
-        reader = Reader(self.reference_reef_shape_file_path)
-        error_count = 0
-        reef_count = 0
-        checked_count = 0
-        start_time = time.time()
+        self.reader = Reader(self.reference_reef_shape_file_path)
+        self.error_count = 0
+        self.reef_count = 0
+        self.checked_count = 0
+        self.start_time = time.time()
         # TODO speed this up. Put the coords into a dataframe and do the filtering that way
-        for n, r in enumerate(reader.records()):  # reader.records() produces a generator
+        for n, r in enumerate(self.reader.records()):  # reader.records() produces a generator
             if n % self.sub_sample == 0:
                 try:
                     if r.geometry.geom_type.lower() == 'multipolygon':
-                        checked_count, reef_count = self._handle_multipolygon(
-                            checked_count, r, reef_count, start_time
-                        )
+                        self._handle_multipolygon(r)
                     elif r.geometry.geom_type.lower() == 'polygon':
-                        checked_count, reef_count = self._handle_polygon(
-                            checked_count, r, reef_count, start_time
-                        )
+                        self._handle_polygon(r)
                 except Exception:
                     # The common error that occurs is Unexpected Error: unable to find ring point
                     # I've given up trying to catch this is a more elegant way
@@ -991,46 +987,37 @@ class ReefMapMaker:
         else:
             # We are plotting polygons and they have already been added to the plot.
             pass
-        self._report_on_ref_reef_plotting(error_count, reef_count)
+        self._report_on_ref_reef_plotting()
 
-    @staticmethod
-    def _report_on_ref_reef_plotting(error_count, reef_count):
-        print(f'\n{error_count} error producing records were discounted from the reference reefs')
-        print(f'{reef_count} reference reefs were added to the plot')
+    def _report_on_ref_reef_plotting(self):
+        print(f'\n{self.error_count} error producing records were discounted from the reference reefs')
+        print(f'{self.reef_count} reference reefs were added to the plot')
 
-    def _handle_polygon(self, checked_count, r, reef_count, start_time):
-        checked_count += 1
-        if checked_count % 1000 == 0:
-            self._report_checked_reef_number(checked_count, start_time)
+    def _handle_polygon(self, r, multi_poly=False):
+        self.checked_count += 1
+        if self.checked_count % 1000 == 0:
+            self._report_checked_reef_number()
         if self._if_within_bounds(r.bounds):
-            coords = r.geometry.exterior.coords.xy
+            if multi_poly:
+                coords = r.exterior.coords.xy
+            else:
+                coords = r.geometry.exterior.coords.xy
             self._make_and_add_poly(coords)
-            reef_count += 1
-            if reef_count % 100 == 0:
-                self._report_reef_number_plotted(reef_count)
-        return checked_count, reef_count
+            self.reef_count += 1
+            if self.reef_count % 100 == 0:
+                self._report_reef_number_plotted()
 
-    def _handle_multipolygon(self, checked_count, r, reef_count, start_time):
+    def _handle_multipolygon(self, r):
         # Create multiple matplotlib polygon objects from the multiple shape polygons
         for polygon in r.geometry:
-            checked_count += 1
-            if checked_count % 1000 == 0:
-                self._report_checked_reef_number(checked_count, start_time)
-            if self._if_within_bounds(polygon.bounds):
-                # each of the individual coords is a tup of tups
-                coords = polygon.exterior.coords.xy
-                self._make_and_add_poly(coords)
-                reef_count += 1
-                if reef_count % 100 == 0:
-                    self._report_reef_number_plotted(reef_count)
-        return checked_count, reef_count
+            self._handle_polygon(r=polygon, multi_poly=True)
 
-    def _report_reef_number_plotted(self, reef_count):
-        print(f'{reef_count} reference reefs plotted')
+    def _report_reef_number_plotted(self):
+        print(f'{self.reef_count} reference reefs plotted')
 
-    def _report_checked_reef_number(self, checked_count, start_time):
+    def _report_checked_reef_number(self):
         new_time = time.time()
-        print(f'{checked_count} reference polygons checked in {new_time - start_time:.2f}s')
+        print(f'{self.checked_count} reference polygons checked in {new_time - self.start_time:.2f}s')
 
     def _make_and_add_ref_reef_patches(self, coords):
             self._make_and_add_poly(coords)
@@ -1175,3 +1162,5 @@ class ReefMapMaker:
         else:
             g1.left_labels = False
         self.large_map_ax._gridliners.append(g1)
+
+ReefMapMaker().draw_map()
