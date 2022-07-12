@@ -968,8 +968,14 @@ class ReefMapMaker:
         self.reef_count = 0
         self.checked_count = 0
         self.start_time = time.time()
-        # TODO speed this up. Put the coords into a dataframe and do the filtering that way
-        for n, r in enumerate(self.reader.records()):  # reader.records() produces a generator
+        print("reading in reference reefs")
+        self.reader_list = list(self.reader.records())
+        print("done")
+
+        in_bound_polys = self._get_ind_of_inbound_polys()
+        
+        # Go back through the reader processing only the in bound reads
+        for n, r in enumerate([obj for ind, obj in enumerate((self.reader_list)) if ind in in_bound_polys]):
             if n % self.sub_sample == 0:
                 try:
                     if r.geometry.geom_type.lower() == 'multipolygon':
@@ -982,12 +988,43 @@ class ReefMapMaker:
                     # The class of exception raised is Exception in shapefile.py
                     error_count += 1
                     continue
+        
         if self.config_dict['plot_type'] == 'point':
             self._plot_ref_scatter(coords_x=self.points[0], coords_y=self.points[1])
         else:
             # We are plotting polygons and they have already been added to the plot.
             pass
+        
         self._report_on_ref_reef_plotting()
+
+    def _get_ind_of_inbound_polys(self):
+        df_dict = {}
+        
+        for i, pol_rec in enumerate(self.reader_list):
+            df_dict[i] = pol_rec.bounds
+
+        # Now make bounds dict
+        bounds_df = pd.DataFrame.from_dict(df_dict, orient="index")
+        # Now we can screen the bounds dict
+        if self.date_line_centered:
+            # First filter by westerly coord, lat and lon
+            bounds_df = bounds_df[
+                # If lon is positive then it needs to be greater than our westernmost bound
+                # If negative it needs to be smaller than our eastern most bound
+                ((bounds_df[0] > 0) & (bounds_df[0] > self.config_dict['bounds'][0])) | ((bounds_df[0] < 0) & (bounds_df[0] < self.config_dict['bounds'][1])) &
+                ((bounds_df[2] > 0) & (bounds_df[2] > self.config_dict['bounds'][0])) | ((bounds_df[2] < 0) & (bounds_df[2] < self.config_dict['bounds'][1])) &
+                (bounds_df[1] > self.config_dict['bounds'][2]) &
+                (bounds_df[3] < self.config_dict['bounds'][3])
+                ]
+        else:
+            bounds_df = bounds_df[
+                (bounds_df[0] > self.config_dict['bounds'][0]) &
+                (bounds_df[1] > self.config_dict['bounds'][2]) &
+                (bounds_df[3] < self.config_dict['bounds'][3]) &
+                (bounds_df[2] < self.config_dict['bounds'][1])
+                ]
+
+        return bounds_df.index.values
 
     def _report_on_ref_reef_plotting(self):
         print(f'\n{self.error_count} error producing records were discounted from the reference reefs')
@@ -997,15 +1034,15 @@ class ReefMapMaker:
         self.checked_count += 1
         if self.checked_count % 1000 == 0:
             self._report_checked_reef_number()
-        if self._if_within_bounds(r.bounds):
-            if multi_poly:
-                coords = r.exterior.coords.xy
-            else:
-                coords = r.geometry.exterior.coords.xy
-            self._make_and_add_poly(coords)
-            self.reef_count += 1
-            if self.reef_count % 100 == 0:
-                self._report_reef_number_plotted()
+        # if self._if_within_bounds(r.bounds):
+        if multi_poly:
+            exterior_coords = r.exterior.coords.xy
+        else:
+            exterior_coords = r.geometry.exterior.coords.xy
+        self._make_and_add_poly(exterior_coords)
+        self.reef_count += 1
+        if self.reef_count % 100 == 0:
+            self._report_reef_number_plotted()
 
     def _handle_multipolygon(self, r):
         # Create multiple matplotlib polygon objects from the multiple shape polygons
@@ -1018,9 +1055,6 @@ class ReefMapMaker:
     def _report_checked_reef_number(self):
         new_time = time.time()
         print(f'{self.checked_count} reference polygons checked in {new_time - self.start_time:.2f}s')
-
-    def _make_and_add_ref_reef_patches(self, coords):
-            self._make_and_add_poly(coords)
 
     def _plot_ref_scatter(self, coords_x, coords_y):
         # coords_x, coords_y = self._concat_input_coord_arrays(coords)
@@ -1162,5 +1196,3 @@ class ReefMapMaker:
         else:
             g1.left_labels = False
         self.large_map_ax._gridliners.append(g1)
-
-ReefMapMaker().draw_map()
