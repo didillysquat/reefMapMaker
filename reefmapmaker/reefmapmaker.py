@@ -131,6 +131,7 @@ class ReefMapMaker:
         self.args = parser.parse_args()
         self.root_dir = os.getcwd()
         self.date_time = str(datetime.now()).split('.')[0].replace('-', '').replace(' ', 'T').replace(':', '')
+        
         if self.args.sub_sample:
             self.sub_sample = int(self.args.sub_sample)
         else:
@@ -144,6 +145,7 @@ class ReefMapMaker:
                 'lon_grid_lab_pos', 'lat_grid_lab_pos', 'plot_boundaries', 'dpi', 'plot_type',
                               'reference_reef_point_size']
         self._set_param_defaults_dict()
+        
         # Lat and lon are both set once the bounds are set in config_setup
         self.lat = None
         self.lon = None
@@ -151,7 +153,7 @@ class ReefMapMaker:
             self._config_setup_with_sheet()
         else:
             self._config_setup_without_sheet()
-
+        
         if self.args.site_sheet:
             self._user_site_setup()
         else:
@@ -161,16 +163,40 @@ class ReefMapMaker:
 
         self.fig = self._setup_map_figure()
 
-        self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(), zorder=1)
-        self.large_map_ax.set_extent(extents=(
-            self.config_dict['bounds'][0], self.config_dict['bounds'][1], self.config_dict['bounds'][2],
-            self.config_dict['bounds'][3]), crs=ccrs.PlateCarree())
+        if self.date_line_centered:
+            # Then we are crossing the date line and we need to do things a little different
+            # Need to set the central_longitude to 180
+            # The extents then become relative to 180
+            # https://stackoverflow.com/questions/59584276/cartopy-set-extent-with-central-longitude-180
+            min_lon = self._convert_coord_to_relative_180_central(self.config_dict['bounds'][0])
+            max_lon = self._convert_coord_to_relative_180_central(self.config_dict['bounds'][1])
+            self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(central_longitude=180), zorder=1)
+            self.large_map_ax.set_extent(extents=(
+                min_lon, max_lon, self.config_dict['bounds'][2],
+                self.config_dict['bounds'][3]), crs=ccrs.PlateCarree())
+        else:
+            self.large_map_ax = plt.subplot(projection=ccrs.PlateCarree(), zorder=1)
+            self.large_map_ax.set_extent(extents=(
+                self.config_dict['bounds'][1], self.config_dict['bounds'][0], self.config_dict['bounds'][2],
+                self.config_dict['bounds'][3]), crs=ccrs.PlateCarree())
         # Scalar for converting the user inputted coordinate radii to point format for plotting
         self.coord_to_point_scaler = self._calc_scaler()
 
         self._setup_fig_output_paths()
         self.plot_points = True
         self.points = [[],[]]
+
+    def _convert_point_coord_to_new_xcoords_central(self, coord):
+        if coord < 0:
+            return coord + 180
+        else:
+            return -1*(180-coord)
+
+    def _convert_coord_to_relative_180_central(self, coord):
+        if coord < 0:
+            return 180 + coord + 180
+        else:
+            return 180 + -1*(180-coord)
 
     def _setup_fig_output_paths(self):
         if not self.args.fig_out_dir:
@@ -403,6 +429,8 @@ class ReefMapMaker:
         If path supplied by user, find the shapefile path and set self.reference_reef_shape_file_path.
         else, search for the shape file in the current working directory.
         """
+        # TODO update to work with the newest version of the shape files
+        # Do this by doing a dynamic search for the likely shape file.
         if self.args.ref_reef_dir:
             # The user has supplied a path
             # This could be the directory containing the parent directory of the dataset
@@ -466,8 +494,14 @@ class ReefMapMaker:
         """
         self._proper_type_param_val()
         self._check_bounds()
+        self.date_line_centered = self.config_dict['bounds'][0] > self.config_dict['bounds'][1]
         self.lat = self.config_dict['bounds'][3] - self.config_dict['bounds'][2]
-        self.lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
+        
+        if self.date_line_centered:
+            # Then the map crosses the antimeridian
+            self.lon = (180 - self.config_dict['bounds'][0]) + (180 + self.config_dict['bounds'][1])
+        else:
+            self.lon = self.config_dict['bounds'][1] - self.config_dict['bounds'][0]
         self._check_bool_params()
         self._check_ref_reef_edge_width()
         self._check_ref_reef_point_size()
@@ -604,12 +638,6 @@ class ReefMapMaker:
             raise RuntimeError("One of your latitude bounds appears to be an invalid value.")
 
     def _check_bounds_in_correct_order(self):
-        try:
-            assert (self.config_dict['bounds'][0] < self.config_dict['bounds'][1])
-        except AssertionError:
-            raise RuntimeError('Check the format of your user config sheet.\n'
-                               'latitude and longitude valus must be in valid decimal degree format and\n'
-                               'westernmost bound should be less than easternmost bound')
         try:
             assert (self.config_dict['bounds'][2] < self.config_dict['bounds'][3])
         except AssertionError:
@@ -946,7 +974,7 @@ class ReefMapMaker:
         Parse through the reference reef records from the shapely file, and if within bounds of the map
         plot them on the map either as polygons or points depending on the user config.
 
-        NBWe were working with shapely features and adding geometries but there were so many problems
+        NB We were working with shapely features and adding geometries but there were so many problems
         I advise to stay away form trying to get them working again.
         Instead we are now creating individual Polygon patches from the coordinates or plotting a point (via scatter)
         for each of the coordinate points that make up a reef polygon.
@@ -957,7 +985,7 @@ class ReefMapMaker:
         reef_count = 0
         checked_count = 0
         start_time = time.time()
-
+        # TODO speed this up. Put the coords into a dataframe and do the filtering that way
         for n, r in enumerate(reader.records()):  # reader.records() produces a generator
             if n % self.sub_sample == 0:
                 try:
@@ -971,7 +999,7 @@ class ReefMapMaker:
                         )
                 except Exception:
                     # The common error that occurs is Unexpected Error: unable to find ring point
-                    # We've given up trying to catch this is a more elegant way
+                    # I've given up trying to catch this is a more elegant way
                     # The class of exception raised is Exception in shapefile.py
                     error_count += 1
                     continue
@@ -1029,8 +1057,12 @@ class ReefMapMaker:
 
         point_size = self._calc_ref_point_size()
         # point_size = 10
-        self.large_map_ax.scatter(x=coords_x, y=coords_y, s=point_size ** 2, zorder=2,
-                                  facecolors=self.config_dict['reference_reef_color'], edgecolors='none')
+        if self.date_line_centered:
+            self.large_map_ax.scatter(x=[self._convert_point_coord_to_new_xcoords_central(_) for _ in coords_x], y=coords_y, s=point_size ** 2, zorder=2,
+                                    facecolors=self.config_dict['reference_reef_color'], edgecolors='none')
+        else:
+            self.large_map_ax.scatter(x=coords_x, y=coords_y, s=point_size ** 2, zorder=2,
+                                    facecolors=self.config_dict['reference_reef_color'], edgecolors='none')
         return coords_x
 
     def _concat_input_coord_arrays(self, coords):
@@ -1076,9 +1108,19 @@ class ReefMapMaker:
         """
         if bounds[0] > self.config_dict['bounds'][0]:
             if bounds[1] > self.config_dict['bounds'][2]:
-                if bounds[2] < self.config_dict['bounds'][1]:
-                    if bounds[3] < self.config_dict['bounds'][3]:
-                        return True
+                if self.date_line_centered:
+                    # Then we only need to check the second long bounds if the bound is negative
+                    if bounds[2] < 0:
+                        if bounds[2] < self.config_dict['bounds'][1]:
+                            if bounds[3] < self.config_dict['bounds'][3]:
+                                return True
+                    else:
+                        if bounds[3] < self.config_dict['bounds'][3]:
+                                return True
+                else:
+                    if bounds[2] < self.config_dict['bounds'][1]:
+                        if bounds[3] < self.config_dict['bounds'][3]:
+                            return True
         return False
 
     @staticmethod
@@ -1122,7 +1164,17 @@ class ReefMapMaker:
         to manually change the xlabels_bottom and ylabels_right attributes of this Gridliner object.
         We then draw it by adding it to the GeoAxis._gridliners list.
         """
-        if self.config_dict['lon_grid_line_pos'] and self.config_dict['lat_grid_line_pos']:
+        if self.config_dict['lon_grid_line_pos'] and self.config_dict['lat_grid_line_pos'] is None:
+            xlocs = mticker.FixedLocator([float(_) for _ in self.config_dict['lon_grid_line_pos'].split(',')])
+            g1 = Gridliner(
+                axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
+                xlocator=xlocs)
+        elif self.config_dict['lon_grid_line_pos'] is None and self.config_dict['lat_grid_line_pos']:
+            ylocs = mticker.FixedLocator([float(_) for _ in self.config_dict['lat_grid_line_pos'].split(',')])
+            g1 = Gridliner(
+                axes=self.large_map_ax, crs=ccrs.PlateCarree(), draw_labels=True,
+                ylocator=ylocs)
+        elif self.config_dict['lon_grid_line_pos'] and self.config_dict['lat_grid_line_pos']:
             xlocs = mticker.FixedLocator([float(_) for _ in self.config_dict['lon_grid_line_pos'].split(',')])
             ylocs = mticker.FixedLocator([float(_) for _ in self.config_dict['lat_grid_line_pos'].split(',')])
             g1 = Gridliner(
