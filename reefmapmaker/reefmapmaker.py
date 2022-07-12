@@ -429,46 +429,29 @@ class ReefMapMaker:
         If path supplied by user, find the shapefile path and set self.reference_reef_shape_file_path.
         else, search for the shape file in the current working directory.
         """
-        # TODO update to work with the newest version of the shape files
         # Do this by doing a dynamic search for the likely shape file.
         if self.args.ref_reef_dir:
-            # The user has supplied a path
-            # This could be the directory containing the parent directory of the dataset
-            # It could be the parent directory of the dataset itself
-            if 'WCMC008' in self.args.ref_reef_dir:
-                potential_shape_path = os.path.join(self.args.ref_reef_dir,
-                                                    '01_Data/WCMC008_CoralReef2018_Py_v4.shp')
-                if os.path.exists(potential_shape_path):
-                    return potential_shape_path
-            else:
-                # Search for the directory in the supplied path
-                dir_to_search = self.args.ref_reef_dir
-                return self._search_for_ref_reef_parent_data_dir(dir_to_search=dir_to_search)
+            return self._search_given_dir_for_shape_file(self.args.ref_reef_dir)
         else:
-            # No user supplied path, search for the directory in the current working directory
-            dir_to_search = self.root_dir
-            return self._search_for_ref_reef_parent_data_dir(dir_to_search=dir_to_search)
+            # Check in the current working directory
+            return self._search_given_dir_for_shape_file(".")
 
-    def _search_for_ref_reef_parent_data_dir(self, dir_to_search):
-        """
-        Try to find the directory that holds the subdirectories that lead to the reference reef shape file.
-        """
-        candidate_dirs = []
-        data_set_parent_dir = None
-        for (dirpath, dirnames, filenames) in os.walk(dir_to_search):
-            candidate_dirs.extend([os.path.join(dirpath, _) for _ in dirnames if 'WCMC008' in _])
-
-        if len(candidate_dirs) == 1:
-            # Then we have found the parent directory
-            data_set_parent_dir = candidate_dirs[0]
-        else:
-            self._report_unable_to_find_ref_reef_path()
-        # Verify that the shape file exists
-        potential_shape_path = os.path.join(data_set_parent_dir, '01_Data/WCMC008_CoralReef2018_Py_v4.shp')
-        if os.path.exists(potential_shape_path):
-            return potential_shape_path
-        else:
-            self._report_unable_to_find_ref_reef_path()
+    def _search_given_dir_for_shape_file(self, dir_to_search):
+        # The user has supplied a path
+        filenames_to_search = []
+        for (dirpath, dirnames, filenames) in os.walk(os.path.join(dir_to_search, "01_Data")):
+            filenames_to_search.extend(filenames)
+            break
+        for fn in filenames_to_search:
+            if fn.startswith("WCMC008_CoralReef2018_Py") and fn.endswith(".shp"):
+                shape_file_path = os.path.join(os.path.join(dir_to_search, "01_Data", fn))
+                if os.path.exists(shape_file_path):
+                    print (f"\nShape file found: {shape_file_path}")
+                    return shape_file_path
+                else:
+                    self._report_unable_to_find_ref_reef_path()
+        
+        self._report_unable_to_find_ref_reef_path()
 
     def _report_unable_to_find_ref_reef_path(self):
         raise RuntimeError(
