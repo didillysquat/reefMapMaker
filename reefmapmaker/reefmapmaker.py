@@ -44,7 +44,7 @@ from cartopy.io import DownloadWarning
 warnings.filterwarnings("ignore", category=DownloadWarning)
 
 
-__version__ = "v0.1.9"
+__version__ = "v0.1.10"
 
 
 class ReefMapMaker:
@@ -931,26 +931,46 @@ class ReefMapMaker:
         print('plotting user reefs\n')
         line_widths = ((self.site_df['radius_in_deg'].astype(
             float) * 2) * self.coord_to_point_scaler) * 0.1
-        self.large_map_ax.scatter(
-            x=self.site_df['longitude_deg_e'],
-            y=self.site_df['latitude_deg_n'],
-            s=(((self.site_df['radius_in_deg'].astype(
-                float) * 2) * self.coord_to_point_scaler) ** 2),
-            facecolors=self.site_df['facecolor'],
-            edgecolors=self.site_df['edgecolor'], zorder=3,
-            linewidths=line_widths
-        )
+        if self.date_line_centered:
+            self.large_map_ax.scatter(
+                x=[self._convert_point_coord_to_new_xcoords_central(_) for _ in self.site_df['longitude_deg_e']],
+                y=self.site_df['latitude_deg_n'],
+                s=(((self.site_df['radius_in_deg'].astype(
+                    float) * 2) * self.coord_to_point_scaler) ** 2),
+                facecolors=self.site_df['facecolor'],
+                edgecolors=self.site_df['edgecolor'], zorder=3,
+                linewidths=line_widths
+            )
+        else:
+            self.large_map_ax.scatter(
+                x=self.site_df['longitude_deg_e'],
+                y=self.site_df['latitude_deg_n'],
+                s=(((self.site_df['radius_in_deg'].astype(
+                    float) * 2) * self.coord_to_point_scaler) ** 2),
+                facecolors=self.site_df['facecolor'],
+                edgecolors=self.site_df['edgecolor'], zorder=3,
+                linewidths=line_widths
+            )
 
     def _annotate_site_labels(self):
         if self.config_dict['user_site_labels']:
             for ind in self.site_df.index:
-                self.large_map_ax.annotate(
-                    ind,
-                    (
-                        self.site_df.at[ind, 'longitude_deg_e'] + self.site_df.at[ind, 'radius_in_deg'],
-                        self.site_df.at[ind, 'latitude_deg_n'] + self.site_df.at[ind, 'radius_in_deg']
+                if self.date_line_centered:
+                    self.large_map_ax.annotate(
+                        ind,
+                        (
+                            self._convert_point_coord_to_new_xcoords_central(self.site_df.at[ind, 'longitude_deg_e']) + self.site_df.at[ind, 'radius_in_deg'],
+                            self.site_df.at[ind, 'latitude_deg_n'] + self.site_df.at[ind, 'radius_in_deg']
+                        )
                     )
-                )
+                else:
+                    self.large_map_ax.annotate(
+                        ind,
+                        (
+                            self.site_df.at[ind, 'longitude_deg_e'] + self.site_df.at[ind, 'radius_in_deg'],
+                            self.site_df.at[ind, 'latitude_deg_n'] + self.site_df.at[ind, 'radius_in_deg']
+                        )
+                    )
 
     def _add_reference_reefs(self):
         """
